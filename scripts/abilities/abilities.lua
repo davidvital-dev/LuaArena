@@ -80,3 +80,13 @@ function usar_habilidade(nome, jogador, inimigo)
         mensagem = nome_jogador .. " usou " .. habilidade.nome .. "."
     }
 end
+
+registrar_habilidade(
+    "bola_de_fogo",
+    "Bola de Fogo",
+    20,
+    30,
+    0,
+    "queimadura",
+    3
+)
