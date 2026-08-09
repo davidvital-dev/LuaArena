@@ -100,3 +100,13 @@ registrar_habilidade(
     nil,
     0
 )
+
+registrar_habilidade(
+    "golpe_venenoso",
+    "Golpe Venenoso",
+    10,
+    15,
+    0,
+    "veneno",
+    4
+)
