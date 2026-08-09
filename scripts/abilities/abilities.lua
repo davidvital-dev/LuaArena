@@ -90,3 +90,13 @@ registrar_habilidade(
     "queimadura",
     3
 )
+
+registrar_habilidade(
+    "cura",
+    "Cura",
+    15,
+    0,
+    25,
+    nil,
+    0
+)
