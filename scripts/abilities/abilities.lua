@@ -50,6 +50,20 @@ function usar_habilidade(nome, jogador, inimigo)
         return falha("Habilidade desconhecida: " .. nome .. ".")
     end
 
+    local energia = jogador.energia
+    local energia_invalida = type(energia) ~= "number"
+        or energia ~= energia
+        or energia < 0
+        or energia == math.huge
+
+    if energia_invalida then
+        return falha("Energia do jogador inválida.")
+    end
+
+    if energia < habilidade.custo then
+        return falha("Energia insuficiente.")
+    end
+
     local nome_jogador = jogador.nome
     if type(nome_jogador) ~= "string" or nome_jogador == "" then
         nome_jogador = "Jogador"
