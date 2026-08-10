@@ -54,6 +54,7 @@ Retorno comum de uma ação:
 
 ```text
 LuaArena/
+├── src/              # código-fonte C++ (motor, bindings, integração com Lua)
 ├── scripts/
 │   ├── abilities/    # habilidades em Lua
 │   ├── difficulty/   # modos de dificuldade em Lua
@@ -64,6 +65,24 @@ LuaArena/
 ├── presentation/      # material de apresentação
 └── tests/            # testes
 ```
+
+## Dependências
+
+- `g++` com suporte a C++17;
+- `pkg-config`;
+- biblioteca de desenvolvimento da Lua 5.4 (ex: `sudo apt install liblua5.4-dev`).
+
+## Build e execução
+
+```bash
+make check-deps  # valida se as dependências estão instaladas
+make build       # compila o motor e gera build/lua-arena
+make run         # compila (se necessário) e executa o jogo
+make clean       # remove os artefatos de build
+make rebuild     # clean + build
+```
+
+O binário final fica em `build/lua-arena`.
 
 ## Equipe
 
