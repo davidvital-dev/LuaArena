@@ -243,6 +243,7 @@ std::optional<ArenaEvent> ArenaManager::onTurnStart(
         return std::nullopt;
     }
 
+    LuaBindings::definir_turno_atual(state_, turn);
     return callHook(
         "ao_iniciar_turno",
         HookArgument::TurnStart,
