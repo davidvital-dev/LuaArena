@@ -68,6 +68,46 @@ bool LuaEngine::loadScript(const std::string& scriptPath) {
     return true;
 }
 
+bool LuaEngine::callFunction(const std::string& functionName) {
+    lastError_.clear();
+
+    if (state_ == nullptr) {
+        lastError_ = "estado Lua não inicializado";
+        return false;
+    }
+
+    if (functionName.empty()) {
+        lastError_ = "nome da função Lua não pode ser vazio";
+        return false;
+    }
+
+    const int stackTop = lua_gettop(state_);
+    lua_getglobal(state_, functionName.c_str());
+
+    if (lua_isnil(state_, -1)) {
+        lastError_ = "função Lua não encontrada: '" + functionName + "'";
+        lua_settop(state_, stackTop);
+        return false;
+    }
+
+    if (!lua_isfunction(state_, -1)) {
+        lastError_ = "'" + functionName + "' existe, mas não é uma função Lua";
+        lua_settop(state_, stackTop);
+        return false;
+    }
+
+    if (lua_pcall(state_, 0, 0, 0) != LUA_OK) {
+        const char* message = lua_tostring(state_, -1);
+        lastError_ = "erro ao executar função '" + functionName + "': "
+            + (message == nullptr ? "erro Lua desconhecido" : message);
+        lua_settop(state_, stackTop);
+        return false;
+    }
+
+    lua_settop(state_, stackTop);
+    return true;
+}
+
 const std::string& LuaEngine::getLastError() const noexcept {
     return lastError_;
 }

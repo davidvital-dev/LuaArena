@@ -283,6 +283,43 @@ void testLuaEngineSyntaxError() {
     );
 }
 
+void testLuaEngineMissingFunction() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+    require(
+        engine.loadScript("tests/fixtures/missing_action_function.lua"),
+        "script sem escolher_acao ainda deve compilar: " + engine.getLastError()
+    );
+
+    require(
+        !engine.callFunction("escolher_acao"),
+        "escolher_acao ausente não deve ser considerada chamada"
+    );
+    require(
+        engine.getLastError().find("não encontrada") != std::string::npos,
+        "mensagem indica função não encontrada: " + engine.getLastError()
+    );
+
+    require(
+        !engine.callFunction("nome_padrao"),
+        "global que não é função deve ser rejeitado"
+    );
+    require(
+        engine.getLastError().find("não é uma função") != std::string::npos,
+        "mensagem indica tipo incorreto: " + engine.getLastError()
+    );
+
+    require(
+        engine.callFunction("preparar_inimigo"),
+        "função existente deve ser chamada: " + engine.getLastError()
+    );
+
+    require(
+        engine.loadScript("scripts/abilities/abilities.lua"),
+        "engine permanece utilizável após função ausente: " + engine.getLastError()
+    );
+}
+
 void testExistingAbilitiesScript() {
     lua_State* state = luaL_newstate();
     require(state != nullptr, "criação do estado Lua para habilidades");
@@ -309,6 +346,7 @@ int main() {
         {"dados Lua inválidos", testInvalidLuaData},
         {"script Lua inexistente", testLuaEngineMissingScript},
         {"script Lua com erro de sintaxe", testLuaEngineSyntaxError},
+        {"função Lua ausente", testLuaEngineMissingFunction},
         {"integração com habilidades", testExistingAbilitiesScript},
     };
 
