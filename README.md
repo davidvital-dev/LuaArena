@@ -78,11 +78,22 @@ LuaArena/
 make check-deps  # valida se as dependências estão instaladas
 make build       # compila o motor e gera build/lua-arena
 make run         # compila (se necessário) e executa o jogo
+make test        # compila e executa testes de arenas, dificuldade e integração
 make clean       # remove os artefatos de build
 make rebuild     # clean + build
 ```
 
 O binário final fica em `build/lua-arena`.
+
+## Arenas e dificuldade
+
+As arenas ficam em `scripts/arenas/` e podem ser trocadas em tempo de execução,
+sem recompilar o C++. A configuração de dificuldade segue o mesmo princípio em
+`scripts/difficulty/`. O motor carrega os scripts, valida todos os campos e só
+então disponibiliza eventos para aplicação no estado da batalha.
+
+Consulte [`docs/arenas-e-eventos.md`](docs/arenas-e-eventos.md) para o contrato,
+o ciclo de vida, exemplos de integração e o comportamento de cada arena.
 
 ## Equipe
 
@@ -101,7 +112,9 @@ Este projeto não implementa interface gráfica, multiplayer, mapa, banco de dad
 
 ## Status
 
-Projeto em desenvolvimento inicial: estrutura de diretórios definida, implementação do motor e das extensões Lua em andamento.
+Projeto em desenvolvimento: estrutura, habilidades, bindings, carregamento de
+dificuldade e sistema de arenas/eventos possuem implementação e testes. A
+integração do loop jogável completo continua em andamento.
 
 ## Licença
 
