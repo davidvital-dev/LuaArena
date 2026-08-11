@@ -1,5 +1,6 @@
 #include "ArenaManager.hpp"
 
+#include "ArenaEventValidator.hpp"
 #include "LuaBindings.hpp"
 
 extern "C" {
@@ -457,11 +458,7 @@ bool ArenaManager::readEvent(lua_State* state, ArenaEvent& event) {
     }
     lua_pop(state, 1);
 
-    if (event.effect == ArenaEffect::None && event.duration != 0) {
-        lastError_ = "duração requer um efeito válido";
-        return false;
-    }
-    return true;
+    return ArenaEventValidator::validate(event, lastError_);
 }
 
 void ArenaManager::setLuaError(lua_State* state, const std::string& context) {
