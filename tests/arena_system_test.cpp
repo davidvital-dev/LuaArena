@@ -91,6 +91,12 @@ void testArenaConfigsAndSwitching() {
     require(manager.config()->name == "Arena Neutra", "nome da Arena Neutra");
     require(manager.config()->modifiers.empty(), "Arena Neutra sem modificadores");
 
+    require(
+        !manager.load("tests/fixtures/invalid_arena_config.lua"),
+        "troca inválida deve ser rejeitada"
+    );
+    require(manager.config()->name == "Arena Neutra", "arena anterior preservada");
+
     require(manager.load("scripts/arenas/volcanic.lua"), manager.lastError());
     require(manager.config()->name == "Arena Vulcânica", "troca sem recompilação");
     require(
@@ -193,6 +199,13 @@ void testInvalidLuaData() {
     const auto recovered = manager.onTurnStart(9, currentPlayer, currentEnemy);
     require(recovered.has_value(), "stack recuperada depois de erros");
     require(recovered->target == ArenaTarget::Enemy, "alvo após recuperação");
+
+    require(
+        !manager.onBattleEnd(BattleResult::Defeat, currentPlayer, currentEnemy),
+        "hook final com tipo inválido"
+    );
+    require(!manager.lastError().empty(), "tipo inválido de hook registrado");
+    require(!manager.battleIsActive(), "fim ocorre mesmo quando hook é inválido");
 }
 
 void testExistingAbilitiesScript() {

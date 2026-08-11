@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-bool ArenaEventValidator::validate(const ArenaEvent& event, std::string& error) noexcept {
+bool ArenaEventValidator::validate(const ArenaEvent& event, std::string& error) {
     if (!std::isfinite(event.value) || event.value < 0.0) {
         error = "valor do evento deve ser finito e não negativo";
         return false;

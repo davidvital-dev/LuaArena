@@ -66,3 +66,5 @@ function ao_iniciar_turno(turno, jogador, inimigo)
     end
     return nil
 end
+
+ao_finalizar_batalha = "não é uma função"
