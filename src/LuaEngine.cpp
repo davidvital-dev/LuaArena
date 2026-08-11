@@ -59,6 +59,65 @@ bool LuaEngine::loadScript(const std::string& scriptPath) {
     return true;
 }
 
+bool LuaEngine::callFunction(
+    const std::string& functionName,
+    int argumentCount,
+    int resultCount
+) {
+    lastError_.clear();
+
+    if (state_ == nullptr) {
+        lastError_ = "estado Lua não inicializado";
+        return false;
+    }
+
+    if (functionName.empty()) {
+        lastError_ = "nome da função Lua não pode ser vazio";
+        return false;
+    }
+
+    if (argumentCount < 0 || resultCount < 0) {
+        lastError_ = "quantidade de argumentos e retornos não pode ser negativa";
+        return false;
+    }
+
+    const int stackTop = lua_gettop(state_);
+    if (stackTop < argumentCount) {
+        lastError_ = "stack Lua não possui argumentos suficientes para chamar '"
+            + functionName + "'";
+        return false;
+    }
+
+    const int baseTop = stackTop - argumentCount;
+    lua_getglobal(state_, functionName.c_str());
+
+    if (lua_type(state_, -1) != LUA_TFUNCTION) {
+        const int valueType = lua_type(state_, -1);
+        if (valueType == LUA_TNIL) {
+            lastError_ = "função Lua '" + functionName + "' não encontrada";
+        } else {
+            const char* typeName = lua_typename(state_, valueType);
+            lastError_ = "global Lua '" + functionName + "' não é uma função (tipo: "
+                + (typeName == nullptr ? "desconhecido" : typeName) + ")";
+        }
+        lua_settop(state_, baseTop);
+        return false;
+    }
+
+    // Coloca a função imediatamente antes dos argumentos já empilhados.
+    lua_insert(state_, baseTop + 1);
+
+    if (lua_pcall(state_, argumentCount, resultCount, 0) != LUA_OK) {
+        const char* message = lua_tostring(state_, -1);
+        lastError_ = "erro ao chamar função Lua '" + functionName + "': "
+            + (message == nullptr ? "erro Lua desconhecido" : message);
+        lua_settop(state_, baseTop);
+        return false;
+    }
+
+    return true;
+}
+
 const std::string& LuaEngine::getLastError() const noexcept {
     return lastError_;
 }
