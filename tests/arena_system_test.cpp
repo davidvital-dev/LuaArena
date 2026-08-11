@@ -1,3 +1,4 @@
+#include "ActionResult.hpp"
 #include "ArenaConfig.hpp"
 #include "ArenaEvent.hpp"
 #include "ArenaManager.hpp"
@@ -265,6 +266,147 @@ void testLuaEngineMissingScript() {
     );
 }
 
+void testLuaEngineSyntaxError() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+
+    const bool loaded = engine.loadScript("tests/fixtures/syntax_error.lua");
+    require(!loaded, "script com erro de sintaxe não deve ser considerado carregado");
+    require(!engine.getLastError().empty(), "erro de sintaxe gera mensagem");
+    require(
+        engine.getLastError().find("tests/fixtures/syntax_error.lua") != std::string::npos,
+        "mensagem identifica o script com erro: " + engine.getLastError()
+    );
+
+    require(
+        engine.loadScript("scripts/abilities/abilities.lua"),
+        "engine permanece utilizável após erro de sintaxe: " + engine.getLastError()
+    );
+}
+
+void testLuaEngineMissingFunction() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+    require(
+        engine.loadScript("tests/fixtures/missing_action_function.lua"),
+        "script sem escolher_acao ainda deve compilar: " + engine.getLastError()
+    );
+
+    require(
+        !engine.callFunction("escolher_acao"),
+        "escolher_acao ausente não deve ser considerada chamada"
+    );
+    require(
+        engine.getLastError().find("não encontrada") != std::string::npos,
+        "mensagem indica função não encontrada: " + engine.getLastError()
+    );
+
+    require(
+        !engine.callFunction("nome_padrao"),
+        "global que não é função deve ser rejeitado"
+    );
+    require(
+        engine.getLastError().find("não é uma função") != std::string::npos,
+        "mensagem indica tipo incorreto: " + engine.getLastError()
+    );
+
+    require(
+        engine.callFunction("preparar_inimigo"),
+        "função existente deve ser chamada: " + engine.getLastError()
+    );
+
+    require(
+        engine.loadScript("scripts/abilities/abilities.lua"),
+        "engine permanece utilizável após função ausente: " + engine.getLastError()
+    );
+}
+
+void testLuaEngineActionResultValidation() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+    require(
+        engine.loadScript("tests/fixtures/action_result_functions.lua"),
+        "fixture de ActionResult deve carregar: " + engine.getLastError()
+    );
+
+    ActionResult result;
+    require(
+        engine.callActionFunction("acao_valida", result),
+        "retorno válido só com campos obrigatórios: " + engine.getLastError()
+    );
+    require(result.type == "ataque", "tipo lido corretamente");
+    require(approximately(result.value, 15.0), "valor lido corretamente");
+    require(result.message == "Ataque padrão.", "mensagem lida corretamente");
+    require(result.effect.empty(), "efeito ausente usa default vazio");
+    require(result.duration == 0, "duração ausente usa default zero");
+    require(approximately(result.energyCost, 0.0), "custo ausente usa default zero");
+
+    ActionResult withOptionals;
+    require(
+        engine.callActionFunction("acao_com_opcionais", withOptionals),
+        "retorno válido com todos os campos: " + engine.getLastError()
+    );
+    require(withOptionals.effect == "queimadura", "efeito opcional lido");
+    require(withOptionals.duration == 3, "duração opcional lida");
+    require(approximately(withOptionals.energyCost, 20.0), "custo opcional lido");
+
+    ActionResult untouched;
+    untouched.type = "sentinela";
+
+    require(
+        !engine.callActionFunction("acao_retorno_nao_table", untouched),
+        "retorno que não é table deve falhar"
+    );
+    require(
+        engine.getLastError().find("deve ser table") != std::string::npos,
+        "mensagem indica tipo de retorno errado: " + engine.getLastError()
+    );
+
+    require(
+        !engine.callActionFunction("acao_sem_tipo", untouched),
+        "tipo ausente deve falhar"
+    );
+    require(
+        engine.getLastError().find("'tipo'") != std::string::npos,
+        "mensagem identifica campo 'tipo': " + engine.getLastError()
+    );
+
+    require(
+        !engine.callActionFunction("acao_valor_invalido", untouched),
+        "valor não numérico deve falhar"
+    );
+    require(
+        engine.getLastError().find("'valor'") != std::string::npos,
+        "mensagem identifica campo 'valor': " + engine.getLastError()
+    );
+
+    require(
+        !engine.callActionFunction("acao_mensagem_invalida", untouched),
+        "mensagem não string deve falhar"
+    );
+    require(
+        engine.getLastError().find("'mensagem'") != std::string::npos,
+        "mensagem identifica campo 'mensagem': " + engine.getLastError()
+    );
+
+    require(
+        !engine.callActionFunction("acao_duracao_invalida", untouched),
+        "duração não inteira deve falhar"
+    );
+    require(
+        engine.getLastError().find("'duracao'") != std::string::npos,
+        "mensagem identifica campo 'duracao': " + engine.getLastError()
+    );
+
+    require(untouched.type == "sentinela", "result não é alterado quando a validação falha");
+
+    ActionResult recovered;
+    require(
+        engine.callActionFunction("acao_valida", recovered),
+        "engine permanece utilizável após falhas de validação: " + engine.getLastError()
+    );
+}
+
 void testExistingAbilitiesScript() {
     lua_State* state = luaL_newstate();
     require(state != nullptr, "criação do estado Lua para habilidades");
@@ -290,6 +432,9 @@ int main() {
         {"eventos periódicos", testPeriodicArenaEvents},
         {"dados Lua inválidos", testInvalidLuaData},
         {"script Lua inexistente", testLuaEngineMissingScript},
+        {"script Lua com erro de sintaxe", testLuaEngineSyntaxError},
+        {"função Lua ausente", testLuaEngineMissingFunction},
+        {"validação de retorno ActionResult", testLuaEngineActionResultValidation},
         {"integração com habilidades", testExistingAbilitiesScript},
     };
 
