@@ -10,6 +10,18 @@ extern "C" {
 
 namespace {
 
+void rawGetField(lua_State* state, int tableIndex, const char* field) {
+    tableIndex = lua_absindex(state, tableIndex);
+    lua_pushstring(state, field);
+    lua_rawget(state, tableIndex);
+}
+
+void rawGetGlobal(lua_State* state, const char* name) {
+    lua_pushglobaltable(state);
+    rawGetField(state, -1, name);
+    lua_remove(state, -2);
+}
+
 void readPositiveNumber(
     lua_State* state,
     int tableIndex,
@@ -18,7 +30,7 @@ void readPositiveNumber(
     double& output,
     std::vector<std::string>& warnings
 ) {
-    lua_getfield(state, tableIndex, field);
+    rawGetField(state, tableIndex, field);
     if (lua_type(state, -1) != LUA_TNUMBER) {
         warnings.emplace_back(
             std::string("campo '") + field + "' inválido; usando valor padrão"
@@ -48,7 +60,7 @@ void readProbability(
     double& output,
     std::vector<std::string>& warnings
 ) {
-    lua_getfield(state, tableIndex, field);
+    rawGetField(state, tableIndex, field);
     if (lua_type(state, -1) != LUA_TNUMBER) {
         warnings.emplace_back(
             std::string("campo '") + field + "' inválido; usando valor padrão"
@@ -78,7 +90,7 @@ void readBoolean(
     bool& output,
     std::vector<std::string>& warnings
 ) {
-    lua_getfield(state, tableIndex, field);
+    rawGetField(state, tableIndex, field);
     if (lua_type(state, -1) != LUA_TBOOLEAN) {
         warnings.emplace_back(
             std::string("campo '") + field + "' inválido; usando valor padrão"
@@ -114,7 +126,7 @@ bool DifficultyLoader::load(const std::string& scriptPath) {
         return false;
     }
 
-    lua_getglobal(state, "configuracao");
+    rawGetGlobal(state, "configuracao");
     if (lua_type(state, -1) != LUA_TTABLE) {
         lastError_ = "script deve declarar a tabela global 'configuracao'";
         lua_close(state);

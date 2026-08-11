@@ -84,6 +84,44 @@ void testDifficultyLoading() {
     require(loader.config().healingEnabled, "default cura");
 }
 
+void testRawContractReads() {
+    DifficultyLoader difficulty;
+    require(
+        difficulty.load("tests/fixtures/metamethod_difficulty.lua"),
+        "metamethod de dificuldade nao deve ser executado"
+    );
+    require(difficulty.warnings().size() == 4, "campos raw ausentes usam defaults");
+    require(
+        approximately(difficulty.config().healthMultiplier, 1.0),
+        "default raw vida"
+    );
+    require(
+        approximately(difficulty.config().attackMultiplier, 1.0),
+        "default raw ataque"
+    );
+    require(
+        approximately(difficulty.config().criticalChance, 0.10),
+        "default raw critico"
+    );
+    require(difficulty.config().healingEnabled, "default raw cura");
+
+    ArenaManager manager;
+    require(
+        !manager.load("tests/fixtures/metamethod_arena_config.lua"),
+        "metamethod de configuracao de arena nao deve ser executado"
+    );
+    require(!manager.lastError().empty(), "configuracao proxy gera erro controlado");
+
+    require(manager.load("tests/fixtures/metamethod_events.lua"), manager.lastError());
+    const auto currentPlayer = player();
+    const auto currentEnemy = enemy();
+    manager.onBattleStart(currentPlayer, currentEnemy);
+    const auto event = manager.onTurnStart(1, currentPlayer, currentEnemy);
+    require(event.has_value(), "campos opcionais raw ausentes usam defaults");
+    require(event->effect == ArenaEffect::None, "efeito raw ausente");
+    require(event->duration == 0, "duracao raw ausente");
+}
+
 void testArenaConfigsAndSwitching() {
     ArenaManager manager;
     require(manager.load("scripts/arenas/neutral.lua"), manager.lastError());
@@ -227,6 +265,7 @@ void testExistingAbilitiesScript() {
 int main() {
     const std::vector<std::pair<std::string, std::function<void()>>> tests = {
         {"carregamento de dificuldade", testDifficultyLoading},
+        {"leitura raw de contratos Lua", testRawContractReads},
         {"configurações e troca de arena", testArenaConfigsAndSwitching},
         {"hooks opcionais e ciclo de vida", testOptionalHooksAndLifecycle},
         {"eventos periódicos", testPeriodicArenaEvents},

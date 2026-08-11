@@ -28,6 +28,18 @@ private:
     int top_;
 };
 
+void rawGetField(lua_State* state, int tableIndex, const char* field) {
+    tableIndex = lua_absindex(state, tableIndex);
+    lua_pushstring(state, field);
+    lua_rawget(state, tableIndex);
+}
+
+void rawGetGlobal(lua_State* state, const char* name) {
+    lua_pushglobaltable(state);
+    rawGetField(state, -1, name);
+    lua_remove(state, -2);
+}
+
 void pushCharacter(lua_State* state, const ArenaCharacter& character) {
     lua_createtable(state, 0, 7);
 
@@ -54,7 +66,7 @@ bool readRequiredString(
     std::string& output,
     std::string& error
 ) {
-    lua_getfield(state, tableIndex, field);
+    rawGetField(state, tableIndex, field);
     if (lua_type(state, -1) != LUA_TSTRING) {
         error = std::string("campo obrigatório '") + field + "' deve ser string";
         lua_pop(state, 1);
@@ -80,7 +92,7 @@ bool readRequiredNumber(
     double& output,
     std::string& error
 ) {
-    lua_getfield(state, tableIndex, field);
+    rawGetField(state, tableIndex, field);
     if (lua_type(state, -1) != LUA_TNUMBER) {
         error = std::string("campo obrigatório '") + field + "' deve ser number";
         lua_pop(state, 1);
@@ -280,7 +292,7 @@ std::optional<ArenaEvent> ArenaManager::onBattleEnd(
 
 bool ArenaManager::readConfig(lua_State* state, ArenaConfig& config) {
     StackGuard guard(state);
-    lua_getglobal(state, "arena");
+    rawGetGlobal(state, "arena");
     if (lua_type(state, -1) != LUA_TTABLE) {
         lastError_ = "script deve declarar a tabela global 'arena'";
         return false;
@@ -298,7 +310,7 @@ bool ArenaManager::readConfig(lua_State* state, ArenaConfig& config) {
         return false;
     }
 
-    lua_getfield(state, tableIndex, "modificadores");
+    rawGetField(state, tableIndex, "modificadores");
     if (lua_type(state, -1) != LUA_TTABLE) {
         lastError_ = "campo obrigatório 'modificadores' deve ser table";
         return false;
@@ -346,7 +358,7 @@ std::optional<ArenaEvent> ArenaManager::callHook(
     const ArenaCharacter& enemy
 ) {
     StackGuard guard(state_);
-    lua_getglobal(state_, hookName);
+    rawGetGlobal(state_, hookName);
     if (lua_type(state_, -1) == LUA_TNIL) {
         return std::nullopt;
     }
@@ -419,7 +431,7 @@ bool ArenaManager::readEvent(lua_State* state, ArenaEvent& event) {
     }
     event.type = *parsedType;
 
-    lua_getfield(state, tableIndex, "efeito");
+    rawGetField(state, tableIndex, "efeito");
     if (lua_type(state, -1) == LUA_TNIL) {
         event.effect = ArenaEffect::None;
     } else if (lua_type(state, -1) == LUA_TSTRING) {
@@ -440,7 +452,7 @@ bool ArenaManager::readEvent(lua_State* state, ArenaEvent& event) {
     }
     lua_pop(state, 1);
 
-    lua_getfield(state, tableIndex, "duracao");
+    rawGetField(state, tableIndex, "duracao");
     if (lua_type(state, -1) == LUA_TNIL) {
         event.duration = 0;
     } else if (!lua_isinteger(state, -1)) {

@@ -41,7 +41,7 @@ OBJS      := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SRCS))
 
 TARGET    := $(BUILD_DIR)/lua-arena
 TEST_TARGET := $(BUILD_DIR)/arena-system-test
-TEST_SRCS := $(wildcard $(SRC_DIR)/*.cpp) tests/arena_system_test.cpp
+TEST_SRCS := $(filter-out $(SRC_DIR)/main.cpp,$(SRCS)) tests/arena_system_test.cpp
 
 # =============================================================
 # Alvos principais
