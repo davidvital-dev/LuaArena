@@ -265,6 +265,24 @@ void testLuaEngineMissingScript() {
     );
 }
 
+void testLuaEngineSyntaxError() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+
+    const bool loaded = engine.loadScript("tests/fixtures/syntax_error.lua");
+    require(!loaded, "script com erro de sintaxe não deve ser considerado carregado");
+    require(!engine.getLastError().empty(), "erro de sintaxe gera mensagem");
+    require(
+        engine.getLastError().find("tests/fixtures/syntax_error.lua") != std::string::npos,
+        "mensagem identifica o script com erro: " + engine.getLastError()
+    );
+
+    require(
+        engine.loadScript("scripts/abilities/abilities.lua"),
+        "engine permanece utilizável após erro de sintaxe: " + engine.getLastError()
+    );
+}
+
 void testExistingAbilitiesScript() {
     lua_State* state = luaL_newstate();
     require(state != nullptr, "criação do estado Lua para habilidades");
@@ -290,6 +308,7 @@ int main() {
         {"eventos periódicos", testPeriodicArenaEvents},
         {"dados Lua inválidos", testInvalidLuaData},
         {"script Lua inexistente", testLuaEngineMissingScript},
+        {"script Lua com erro de sintaxe", testLuaEngineSyntaxError},
         {"integração com habilidades", testExistingAbilitiesScript},
     };
 
