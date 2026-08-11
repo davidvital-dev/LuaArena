@@ -6,6 +6,9 @@ extern "C" {
 #include <lualib.h>
 }
 
+#include <filesystem>
+#include <system_error>
+
 LuaEngine::LuaEngine() noexcept
     : state_(luaL_newstate()) {
     if (state_ != nullptr) {
@@ -34,6 +37,12 @@ bool LuaEngine::loadScript(const std::string& scriptPath) {
 
     if (scriptPath.empty()) {
         lastError_ = "caminho do script Lua não pode ser vazio";
+        return false;
+    }
+
+    std::error_code fsError;
+    if (!std::filesystem::is_regular_file(scriptPath, fsError) || fsError) {
+        lastError_ = "script Lua não encontrado: '" + scriptPath + "'";
         return false;
     }
 

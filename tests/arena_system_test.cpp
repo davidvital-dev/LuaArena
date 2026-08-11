@@ -2,6 +2,7 @@
 #include "ArenaEvent.hpp"
 #include "ArenaManager.hpp"
 #include "DifficultyConfig.hpp"
+#include "LuaEngine.hpp"
 
 extern "C" {
 #include <lauxlib.h>
@@ -246,6 +247,24 @@ void testInvalidLuaData() {
     require(!manager.battleIsActive(), "fim ocorre mesmo quando hook é inválido");
 }
 
+void testLuaEngineMissingScript() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+
+    const bool loaded = engine.loadScript("scripts/enemies/goblin_basic.lua");
+    require(!loaded, "script inexistente não deve ser considerado carregado");
+    require(!engine.getLastError().empty(), "falha de script inexistente gera mensagem");
+    require(
+        engine.getLastError().find("não encontrado") != std::string::npos,
+        "mensagem indica arquivo não encontrado: " + engine.getLastError()
+    );
+
+    require(
+        engine.loadScript("scripts/abilities/abilities.lua"),
+        "engine permanece utilizável após falha: " + engine.getLastError()
+    );
+}
+
 void testExistingAbilitiesScript() {
     lua_State* state = luaL_newstate();
     require(state != nullptr, "criação do estado Lua para habilidades");
@@ -270,6 +289,7 @@ int main() {
         {"hooks opcionais e ciclo de vida", testOptionalHooksAndLifecycle},
         {"eventos periódicos", testPeriodicArenaEvents},
         {"dados Lua inválidos", testInvalidLuaData},
+        {"script Lua inexistente", testLuaEngineMissingScript},
         {"integração com habilidades", testExistingAbilitiesScript},
     };
 
