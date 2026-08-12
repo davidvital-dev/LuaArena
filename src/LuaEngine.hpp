@@ -3,8 +3,10 @@
 #include <string>
 
 #include "ActionResult.hpp"
+#include "AbilityResult.hpp"
 
 struct lua_State;
+class Character;
 
 class LuaEngine {
 public:
@@ -33,6 +35,17 @@ public:
     // getLastError() e não altera `result` (docs/contracts.md, seções 3, 4
     // e 10).
     bool callActionFunction(const std::string& functionName, ActionResult& result);
+
+    // Chama usar_habilidade(nome, jogador, inimigo) e converte o retorno para
+    // AbilityResult. A função retorna true quando a ponte e o retorno Lua são
+    // válidos, inclusive quando o script recusa a habilidade (`success ==
+    // false`). Não altera nenhum Character: o Game revalida e aplica a ação.
+    bool callAbilityFunction(
+        const std::string& abilityName,
+        const Character& player,
+        const Character& enemy,
+        AbilityResult& result
+    );
 
     const std::string& getLastError() const noexcept;
     lua_State* getState() noexcept;
