@@ -239,7 +239,7 @@ void testAbilityApplication() {
     require(fire.getEnemy().isBurning(), "queimadura aplicada por C++");
     require(
         approximately(fire.getEnemy().processBurning(), 30.0),
-        "queimadura usa valor validado pela ponte"
+        "queimadura usa candidate.damage como dano por turno"
     );
 
     Game healing{mage(), goblin()};
@@ -263,7 +263,7 @@ void testAbilityApplication() {
     require(poison.getEnemy().isPoisoned(), "veneno aplicado por C++");
     require(
         approximately(poison.getEnemy().processPoison(), 15.0),
-        "veneno usa valor validado pela ponte"
+        "veneno usa candidate.damage como dano por turno"
     );
 
     Game insufficientEnergy{

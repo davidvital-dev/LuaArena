@@ -8,8 +8,8 @@ extern "C" {
 #include <lualib.h>
 }
 
-#include <filesystem>
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <system_error>
 
@@ -29,6 +29,20 @@ private:
     int top_;
 };
 
+bool isFiniteNonNegative(double value) {
+    return std::isfinite(value) && value >= 0.0;
+}
+
+bool isAllowedActionType(const std::string& type) {
+    return type == "ataque" || type == "cura" || type == "defesa" ||
+           type == "habilidade" || type == "nenhum";
+}
+
+bool isAllowedEffect(const std::string& effect) {
+    return effect == "queimadura" || effect == "veneno" ||
+           effect == "defesa" || effect == "nenhum";
+}
+
 void rawGetField(lua_State* state, int tableIndex, const char* field) {
     tableIndex = lua_absindex(state, tableIndex);
     lua_pushstring(state, field);
@@ -39,41 +53,6 @@ void rawGetGlobal(lua_State* state, const char* name) {
     lua_pushglobaltable(state);
     rawGetField(state, -1, name);
     lua_remove(state, -2);
-}
-
-void pushCharacter(lua_State* state, const Character& character) {
-    lua_createtable(state, 0, 7);
-
-    const std::string& name = character.getName();
-    lua_pushlstring(state, name.data(), name.size());
-    lua_setfield(state, -2, "nome");
-    lua_pushnumber(state, character.getHealth());
-    lua_setfield(state, -2, "vida");
-    lua_pushnumber(state, character.getMaximumHealth());
-    lua_setfield(state, -2, "vida_maxima");
-    lua_pushnumber(state, character.getAttack());
-    lua_setfield(state, -2, "ataque");
-    lua_pushnumber(state, character.getDefense());
-    lua_setfield(state, -2, "defesa");
-    lua_pushnumber(state, character.getEnergy());
-    lua_setfield(state, -2, "energia");
-    lua_pushnumber(state, character.getMaximumEnergy());
-    lua_setfield(state, -2, "energia_maxima");
-}
-
-bool isValidCharacter(const Character& character) {
-    const double health = character.getHealth();
-    const double maximumHealth = character.getMaximumHealth();
-    const double attack = character.getAttack();
-    const double defense = character.getDefense();
-    const double energy = character.getEnergy();
-    const double maximumEnergy = character.getMaximumEnergy();
-
-    return std::isfinite(health) && std::isfinite(maximumHealth) &&
-           std::isfinite(attack) && std::isfinite(defense) &&
-           std::isfinite(energy) && std::isfinite(maximumEnergy) &&
-           health >= 0.0 && maximumHealth >= health && attack >= 0.0 &&
-           defense >= 0.0 && energy >= 0.0 && maximumEnergy >= energy;
 }
 
 bool readRequiredBoolean(
@@ -232,6 +211,30 @@ bool readOptionalDuration(
     return true;
 }
 
+void rawSetStringField(
+    lua_State* state,
+    int tableIndex,
+    const char* field,
+    const std::string& value
+) {
+    tableIndex = lua_absindex(state, tableIndex);
+    lua_pushstring(state, field);
+    lua_pushlstring(state, value.data(), value.size());
+    lua_rawset(state, tableIndex);
+}
+
+void rawSetNumberField(
+    lua_State* state,
+    int tableIndex,
+    const char* field,
+    double value
+) {
+    tableIndex = lua_absindex(state, tableIndex);
+    lua_pushstring(state, field);
+    lua_pushnumber(state, value);
+    lua_rawset(state, tableIndex);
+}
+
 }  // namespace
 
 LuaEngine::LuaEngine() noexcept
@@ -312,7 +315,7 @@ bool LuaEngine::callFunction(const std::string& functionName, int resultCount) {
     }
 
     const int stackTop = lua_gettop(state_);
-    lua_getglobal(state_, functionName.c_str());
+    rawGetGlobal(state_, functionName.c_str());
 
     if (lua_isnil(state_, -1)) {
         lastError_ = "função Lua não encontrada: '" + functionName + "'";
@@ -334,7 +337,55 @@ bool LuaEngine::callFunction(const std::string& functionName, int resultCount) {
         return false;
     }
 
-    // lua_pcall já deixa exatamente resultCount valores na stack.
+    return true;
+}
+
+bool LuaEngine::pushCharacter(const Character& character) {
+    lastError_.clear();
+
+    if (state_ == nullptr) {
+        lastError_ = "estado Lua não inicializado";
+        return false;
+    }
+
+    const double health = character.getHealth();
+    const double maximumHealth = character.getMaximumHealth();
+    const double attack = character.getAttack();
+    const double defense = character.getDefense();
+    const double energy = character.getEnergy();
+    const double maximumEnergy = character.getMaximumEnergy();
+
+    if (!isFiniteNonNegative(health) ||
+        !isFiniteNonNegative(maximumHealth) ||
+        !isFiniteNonNegative(attack) ||
+        !isFiniteNonNegative(defense) ||
+        !isFiniteNonNegative(energy) ||
+        !isFiniteNonNegative(maximumEnergy)) {
+        lastError_ = "personagem possui atributo numérico inválido para envio ao Lua";
+        return false;
+    }
+
+    if (health > maximumHealth) {
+        lastError_ = "vida atual do personagem supera a vida máxima";
+        return false;
+    }
+
+    if (energy > maximumEnergy) {
+        lastError_ = "energia atual do personagem supera a energia máxima";
+        return false;
+    }
+
+    lua_createtable(state_, 0, 7);
+    const int tableIndex = lua_gettop(state_);
+
+    rawSetStringField(state_, tableIndex, "nome", character.getName());
+    rawSetNumberField(state_, tableIndex, "vida", health);
+    rawSetNumberField(state_, tableIndex, "vida_maxima", maximumHealth);
+    rawSetNumberField(state_, tableIndex, "ataque", attack);
+    rawSetNumberField(state_, tableIndex, "defesa", defense);
+    rawSetNumberField(state_, tableIndex, "energia", energy);
+    rawSetNumberField(state_, tableIndex, "energia_maxima", maximumEnergy);
+
     return true;
 }
 
@@ -345,88 +396,130 @@ bool LuaEngine::callActionFunction(const std::string& functionName, ActionResult
         return false;
     }
 
-    if (!lua_istable(state_, -1)) {
-        const char* typeName = lua_typename(state_, lua_type(state_, -1));
-        lastError_ = "retorno de '" + functionName + "' deve ser table, recebido: "
-            + (typeName == nullptr ? "desconhecido" : typeName);
-        lua_pop(state_, 1);
+    ActionResult candidate;
+    const bool valid = readActionResult(-1, candidate);
+    lua_pop(state_, 1);
+
+    if (!valid) {
         return false;
     }
 
-    const int tableIndex = lua_gettop(state_);
+    result = candidate;
+    return true;
+}
+
+bool LuaEngine::readActionResult(int tableIndex, ActionResult& result) {
+    if (state_ == nullptr) {
+        lastError_ = "estado Lua não inicializado";
+        return false;
+    }
+
+    tableIndex = lua_absindex(state_, tableIndex);
+    const int stackTop = lua_gettop(state_);
+
+    if (!lua_istable(state_, tableIndex)) {
+        const char* typeName = lua_typename(state_, lua_type(state_, tableIndex));
+        lastError_ = "retorno de ação deve ser table, recebido: "
+            + std::string(typeName == nullptr ? "desconhecido" : typeName);
+        return false;
+    }
+
     ActionResult candidate;
 
-    lua_getfield(state_, tableIndex, "tipo");
+    rawGetField(state_, tableIndex, "tipo");
     if (lua_type(state_, -1) != LUA_TSTRING) {
-        lastError_ = "campo 'tipo' ausente ou não é string no retorno de '" + functionName + "'";
-        lua_pop(state_, 2);
+        lastError_ = "campo obrigatório 'tipo' deve ser string";
+        lua_settop(state_, stackTop);
         return false;
     }
     candidate.type = lua_tostring(state_, -1);
     lua_pop(state_, 1);
 
-    lua_getfield(state_, tableIndex, "valor");
+    if (!isAllowedActionType(candidate.type)) {
+        lastError_ = "campo 'tipo' possui ação não permitida: '" + candidate.type + "'";
+        lua_settop(state_, stackTop);
+        return false;
+    }
+
+    rawGetField(state_, tableIndex, "valor");
     if (lua_type(state_, -1) != LUA_TNUMBER) {
-        lastError_ = "campo 'valor' ausente ou não é number no retorno de '" + functionName + "'";
-        lua_pop(state_, 2);
+        lastError_ = "campo obrigatório 'valor' deve ser number";
+        lua_settop(state_, stackTop);
         return false;
     }
     candidate.value = lua_tonumber(state_, -1);
     lua_pop(state_, 1);
 
-    lua_getfield(state_, tableIndex, "mensagem");
-    const int messageType = lua_type(state_, -1);
-    if (messageType == LUA_TNIL) {
-        candidate.message.clear();
-    } else if (messageType == LUA_TSTRING) {
-        candidate.message = lua_tostring(state_, -1);
-    } else {
-        lastError_ = "campo 'mensagem' presente mas não é string no retorno de '" + functionName + "'";
-        lua_pop(state_, 2);
+    if (!isFiniteNonNegative(candidate.value)) {
+        lastError_ = "campo 'valor' deve ser finito e não negativo";
+        lua_settop(state_, stackTop);
         return false;
     }
+
+    rawGetField(state_, tableIndex, "mensagem");
+    if (lua_type(state_, -1) != LUA_TSTRING) {
+        lastError_ = "campo obrigatório 'mensagem' deve ser string";
+        lua_settop(state_, stackTop);
+        return false;
+    }
+    candidate.message = lua_tostring(state_, -1);
     lua_pop(state_, 1);
 
-    lua_getfield(state_, tableIndex, "efeito");
-    const int effectType = lua_type(state_, -1);
-    if (effectType == LUA_TNIL) {
+    rawGetField(state_, tableIndex, "efeito");
+    if (lua_type(state_, -1) == LUA_TNIL) {
         candidate.effect.clear();
-    } else if (effectType == LUA_TSTRING) {
+    } else if (lua_type(state_, -1) == LUA_TSTRING) {
         candidate.effect = lua_tostring(state_, -1);
+        if (!isAllowedEffect(candidate.effect)) {
+            lastError_ = "campo 'efeito' possui efeito não permitido: '"
+                + candidate.effect + "'";
+            lua_settop(state_, stackTop);
+            return false;
+        }
     } else {
-        lastError_ = "campo 'efeito' presente mas não é string no retorno de '" + functionName + "'";
-        lua_pop(state_, 2);
+        lastError_ = "campo 'efeito' deve ser string ou nil";
+        lua_settop(state_, stackTop);
         return false;
     }
     lua_pop(state_, 1);
 
-    lua_getfield(state_, tableIndex, "duracao");
-    const int durationType = lua_type(state_, -1);
-    if (durationType == LUA_TNIL) {
+    rawGetField(state_, tableIndex, "duracao");
+    if (lua_type(state_, -1) == LUA_TNIL) {
         candidate.duration = 0;
-    } else if (durationType == LUA_TNUMBER && lua_isinteger(state_, -1)) {
-        candidate.duration = static_cast<int>(lua_tointeger(state_, -1));
+    } else if (lua_isinteger(state_, -1)) {
+        const lua_Integer duration = lua_tointeger(state_, -1);
+        if (duration < 0 ||
+            duration > static_cast<lua_Integer>(std::numeric_limits<int>::max())) {
+            lastError_ = "campo 'duracao' deve ser inteiro não negativo válido";
+            lua_settop(state_, stackTop);
+            return false;
+        }
+        candidate.duration = static_cast<int>(duration);
     } else {
-        lastError_ = "campo 'duracao' presente mas não é inteiro no retorno de '" + functionName + "'";
-        lua_pop(state_, 2);
+        lastError_ = "campo 'duracao' deve ser inteiro ou nil";
+        lua_settop(state_, stackTop);
         return false;
     }
     lua_pop(state_, 1);
 
-    lua_getfield(state_, tableIndex, "custo");
-    const int costType = lua_type(state_, -1);
-    if (costType == LUA_TNIL) {
+    rawGetField(state_, tableIndex, "custo");
+    if (lua_type(state_, -1) == LUA_TNIL) {
         candidate.energyCost = 0.0;
-    } else if (costType == LUA_TNUMBER) {
+    } else if (lua_type(state_, -1) == LUA_TNUMBER) {
         candidate.energyCost = lua_tonumber(state_, -1);
+        if (!isFiniteNonNegative(candidate.energyCost)) {
+            lastError_ = "campo 'custo' deve ser finito e não negativo";
+            lua_settop(state_, stackTop);
+            return false;
+        }
     } else {
-        lastError_ = "campo 'custo' presente mas não é number no retorno de '" + functionName + "'";
-        lua_pop(state_, 2);
+        lastError_ = "campo 'custo' deve ser number ou nil";
+        lua_settop(state_, stackTop);
         return false;
     }
     lua_pop(state_, 1);
 
-    lua_pop(state_, 1);  // remove a table de retorno
+    lua_settop(state_, stackTop);
     result = candidate;
     return true;
 }
@@ -447,11 +540,6 @@ bool LuaEngine::callAbilityFunction(
         lastError_ = "nome da habilidade não pode ser vazio";
         return false;
     }
-    if (!isValidCharacter(player) || !isValidCharacter(enemy)) {
-        lastError_ = "dados dos personagens são inválidos para usar habilidade";
-        return false;
-    }
-
     StackGuard guard(state_);
     rawGetGlobal(state_, "usar_habilidade");
     if (lua_type(state_, -1) == LUA_TNIL) {
@@ -464,8 +552,12 @@ bool LuaEngine::callAbilityFunction(
     }
 
     lua_pushlstring(state_, abilityName.data(), abilityName.size());
-    pushCharacter(state_, player);
-    pushCharacter(state_, enemy);
+    if (!pushCharacter(player)) {
+        return false;
+    }
+    if (!pushCharacter(enemy)) {
+        return false;
+    }
 
     if (lua_pcall(state_, 3, 1, 0) != LUA_OK) {
         const char* message = lua_tostring(state_, -1);

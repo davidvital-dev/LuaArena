@@ -45,6 +45,9 @@ TEST_SRCS := $(filter-out $(SRC_DIR)/main.cpp,$(SRCS)) tests/arena_system_test.c
 GAME_ENGINE_TEST_TARGET := $(BUILD_DIR)/game-engine-test
 GAME_ENGINE_TEST_SRCS := $(SRC_DIR)/ActionMenu.cpp $(SRC_DIR)/Character.cpp \
 	$(SRC_DIR)/Game.cpp $(SRC_DIR)/LuaEngine.cpp tests/game_engine_test.cpp
+LUA_INTEGRATION_TEST_TARGET := $(BUILD_DIR)/lua-integration-test
+LUA_INTEGRATION_TEST_SRCS := $(SRC_DIR)/LuaEngine.cpp $(SRC_DIR)/Character.cpp \
+	tests/lua_integration_test.cpp
 
 # =============================================================
 # Alvos principais
@@ -72,15 +75,19 @@ $(BUILD_STAMP):
 run: build
 	./$(TARGET) scripts/enemies/goblin_basic.lua
 
-test: $(TEST_TARGET) $(GAME_ENGINE_TEST_TARGET)
+test: $(TEST_TARGET) $(GAME_ENGINE_TEST_TARGET) $(LUA_INTEGRATION_TEST_TARGET)
 	./$(TEST_TARGET)
 	./$(GAME_ENGINE_TEST_TARGET)
+	./$(LUA_INTEGRATION_TEST_TARGET)
 
 $(TEST_TARGET): $(TEST_SRCS) | $(BUILD_STAMP)
 	$(CXX) $(CXXFLAGS) $(TEST_SRCS) -o $@ $(LDLIBS)
 
 $(GAME_ENGINE_TEST_TARGET): $(GAME_ENGINE_TEST_SRCS) | $(BUILD_STAMP)
 	$(CXX) $(CXXFLAGS) $(GAME_ENGINE_TEST_SRCS) -o $@ $(LDLIBS)
+
+$(LUA_INTEGRATION_TEST_TARGET): $(LUA_INTEGRATION_TEST_SRCS) | $(BUILD_STAMP)
+	$(CXX) $(CXXFLAGS) $(LUA_INTEGRATION_TEST_SRCS) -o $@ $(LDLIBS)
 
 clean:
 	rm -rf $(BUILD_DIR)
