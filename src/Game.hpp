@@ -7,6 +7,12 @@ enum class TurnOwner {
     Enemy,
 };
 
+enum class BattleOutcome {
+    InProgress,
+    Victory,
+    Defeat,
+};
+
 class Game {
 public:
     Game(Character player, Character enemy);
@@ -25,6 +31,11 @@ public:
     const Character& getCurrentCharacter() const noexcept;
     Character& getOpponent() noexcept;
     const Character& getOpponent() const noexcept;
+
+    BattleOutcome getBattleOutcome() const noexcept;
+    bool isBattleOver() const noexcept;
+    bool hasPlayerWon() const noexcept;
+    bool hasPlayerLost() const noexcept;
 
     // Alterna jogador/inimigo; uma nova rodada comeca depois do inimigo.
     bool advanceTurn() noexcept;

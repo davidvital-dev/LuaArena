@@ -50,7 +50,33 @@ const Character& Game::getOpponent() const noexcept {
     return isPlayerTurn() ? enemy_ : player_;
 }
 
+BattleOutcome Game::getBattleOutcome() const noexcept {
+    if (player_.isDefeated()) {
+        return BattleOutcome::Defeat;
+    }
+    if (enemy_.isDefeated()) {
+        return BattleOutcome::Victory;
+    }
+    return BattleOutcome::InProgress;
+}
+
+bool Game::isBattleOver() const noexcept {
+    return getBattleOutcome() != BattleOutcome::InProgress;
+}
+
+bool Game::hasPlayerWon() const noexcept {
+    return getBattleOutcome() == BattleOutcome::Victory;
+}
+
+bool Game::hasPlayerLost() const noexcept {
+    return getBattleOutcome() == BattleOutcome::Defeat;
+}
+
 bool Game::advanceTurn() noexcept {
+    if (isBattleOver()) {
+        return false;
+    }
+
     if (isPlayerTurn()) {
         turnOwner_ = TurnOwner::Enemy;
         return true;
