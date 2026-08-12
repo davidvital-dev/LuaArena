@@ -31,16 +31,17 @@ Lua 5.4. Só prossiga com o restante do roteiro depois que ele imprimir
 
 ## 3. Testes automatizados
 
-Os testes automatizados ficam em `tests/arena_system_test.cpp` e cobrem o
-motor de arenas, dificuldade e o `LuaEngine`. Para compilar e rodar:
+Os testes automatizados ficam em `tests/arena_system_test.cpp`, que cobre
+arenas, dificuldade e `LuaEngine`, e em `tests/game_engine_test.cpp`, que cobre
+as regras do motor do jogo. Para compilar e rodar as duas suítes:
 
 ```bash
 make test
 ```
 
-Isso gera `build/arena-system-test` e o executa. Cada caso de teste
-imprime `[ok] <nome>` em caso de sucesso; qualquer falha interrompe a
-execução com `[falha] <mensagem>` e código de saída `1`.
+Isso gera e executa `build/arena-system-test` e `build/game-engine-test`.
+Cada caso imprime seu resultado; qualquer falha faz o executável responsável
+terminar com código de saída `1`.
 
 ### O que `arena_system_test.cpp` cobre hoje
 
@@ -57,6 +58,18 @@ execução com `[falha] <mensagem>` e código de saída `1`.
 | Função Lua ausente | `LuaEngine::callFunction` com função inexistente ou global de outro tipo |
 | Validação de retorno `ActionResult` | `LuaEngine::callActionFunction` com retorno que não é table, campos obrigatórios ausentes/inválidos e campos opcionais inválidos |
 | Integração com habilidades | `tests/abilities_test.lua`, cobrindo `usar_habilidade` do catálogo real |
+
+### O que `game_engine_test.cpp` cobre
+
+| Caso | O que valida |
+|---|---|
+| Dano e defesa | Redução pela defesa, rejeição de valores inválidos e limite mínimo de vida |
+| Cura | Limite na vida máxima e impossibilidade de reviver um personagem derrotado |
+| Energia | Consulta de saldo, consumo validado e recuperação até o valor máximo |
+| Queimadura e veneno | Aplicação, coexistência, reaplicação, duração, dano por turno e expiração |
+| Sequência de turnos | Alternância jogador/inimigo e incremento da rodada depois do inimigo |
+| Vitória e derrota | Resultado da batalha e bloqueio do avanço de turno após o encerramento |
+| Menu de ações | Ataque básico, habilidades, entradas inválidas, EOF e configuração duplicada/vazia |
 
 Cada um dos quatro últimos casos é a base para os testes manuais
 equivalentes da seção 6 — eles já garantem, hoje, que o comportamento
