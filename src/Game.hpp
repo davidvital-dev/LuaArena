@@ -1,6 +1,11 @@
 #pragma once
 
+#include <string>
+
+#include "AbilityResult.hpp"
 #include "Character.hpp"
+
+class LuaEngine;
 
 enum class TurnOwner {
     Player,
@@ -36,6 +41,15 @@ public:
     bool isBattleOver() const noexcept;
     bool hasPlayerWon() const noexcept;
     bool hasPlayerLost() const noexcept;
+
+    // Executa a habilidade escolhida pelo jogador por meio do LuaEngine. O
+    // retorno booleano informa se C++ aplicou a ação; o resultado preserva a
+    // descrição Lua e expõe `applied` para quem apresentar a mensagem.
+    bool useAbility(
+        LuaEngine& engine,
+        const std::string& abilityIdentifier,
+        AbilityResult& result
+    );
 
     // Alterna jogador/inimigo; uma nova rodada comeca depois do inimigo.
     bool advanceTurn() noexcept;

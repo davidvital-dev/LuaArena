@@ -1,5 +1,7 @@
 #include "LuaEngine.hpp"
 
+#include "Character.hpp"
+
 extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
@@ -12,6 +14,20 @@ extern "C" {
 #include <system_error>
 
 namespace {
+
+class StackGuard {
+public:
+    explicit StackGuard(lua_State* state) noexcept
+        : state_(state), top_(lua_gettop(state)) {}
+
+    ~StackGuard() noexcept {
+        lua_settop(state_, top_);
+    }
+
+private:
+    lua_State* state_;
+    int top_;
+};
 
 bool isFiniteNonNegative(double value) {
     return std::isfinite(value) && value >= 0.0;
@@ -37,6 +53,162 @@ void rawGetGlobal(lua_State* state, const char* name) {
     lua_pushglobaltable(state);
     rawGetField(state, -1, name);
     lua_remove(state, -2);
+}
+
+bool readRequiredBoolean(
+    lua_State* state,
+    int tableIndex,
+    const char* field,
+    bool& output,
+    std::string& error
+) {
+    rawGetField(state, tableIndex, field);
+    if (lua_type(state, -1) != LUA_TBOOLEAN) {
+        error = std::string("campo '") + field + "' ausente ou não é boolean";
+        lua_pop(state, 1);
+        return false;
+    }
+
+    output = lua_toboolean(state, -1) != 0;
+    lua_pop(state, 1);
+    return true;
+}
+
+bool readRequiredString(
+    lua_State* state,
+    int tableIndex,
+    const char* field,
+    std::string& output,
+    std::string& error
+) {
+    rawGetField(state, tableIndex, field);
+    if (lua_type(state, -1) != LUA_TSTRING) {
+        error = std::string("campo '") + field + "' ausente ou não é string";
+        lua_pop(state, 1);
+        return false;
+    }
+
+    std::size_t size = 0;
+    const char* value = lua_tolstring(state, -1, &size);
+    output.assign(value, size);
+    lua_pop(state, 1);
+    return true;
+}
+
+bool readRequiredNonNegativeNumber(
+    lua_State* state,
+    int tableIndex,
+    const char* field,
+    double& output,
+    std::string& error
+) {
+    rawGetField(state, tableIndex, field);
+    if (lua_type(state, -1) != LUA_TNUMBER) {
+        error = std::string("campo '") + field + "' ausente ou não é number";
+        lua_pop(state, 1);
+        return false;
+    }
+
+    output = lua_tonumber(state, -1);
+    lua_pop(state, 1);
+    if (!std::isfinite(output) || output < 0.0) {
+        error = std::string("campo '") + field
+            + "' deve ser finito e não negativo";
+        return false;
+    }
+    return true;
+}
+
+bool readOptionalNonNegativeNumber(
+    lua_State* state,
+    int tableIndex,
+    const char* field,
+    double& output,
+    std::string& error
+) {
+    rawGetField(state, tableIndex, field);
+    if (lua_type(state, -1) == LUA_TNIL) {
+        output = 0.0;
+        lua_pop(state, 1);
+        return true;
+    }
+    if (lua_type(state, -1) != LUA_TNUMBER) {
+        error = std::string("campo opcional '") + field + "' deve ser number";
+        lua_pop(state, 1);
+        return false;
+    }
+
+    output = lua_tonumber(state, -1);
+    lua_pop(state, 1);
+    if (!std::isfinite(output) || output < 0.0) {
+        error = std::string("campo opcional '") + field
+            + "' deve ser finito e não negativo";
+        return false;
+    }
+    return true;
+}
+
+bool readOptionalEffect(
+    lua_State* state,
+    int tableIndex,
+    std::string& output,
+    std::string& error
+) {
+    rawGetField(state, tableIndex, "efeito");
+    if (lua_type(state, -1) == LUA_TNIL) {
+        output.clear();
+        lua_pop(state, 1);
+        return true;
+    }
+    if (lua_type(state, -1) != LUA_TSTRING) {
+        error = "campo opcional 'efeito' deve ser string ou nil";
+        lua_pop(state, 1);
+        return false;
+    }
+
+    std::size_t size = 0;
+    const char* value = lua_tolstring(state, -1, &size);
+    output.assign(value, size);
+    lua_pop(state, 1);
+
+    if (output == "nenhum") {
+        output.clear();
+    }
+    if (output.empty() || output == "queimadura" || output == "veneno") {
+        return true;
+    }
+
+    error = "efeito de habilidade desconhecido: " + output;
+    return false;
+}
+
+bool readOptionalDuration(
+    lua_State* state,
+    int tableIndex,
+    int& output,
+    std::string& error
+) {
+    rawGetField(state, tableIndex, "duracao");
+    if (lua_type(state, -1) == LUA_TNIL) {
+        output = 0;
+        lua_pop(state, 1);
+        return true;
+    }
+    if (!lua_isinteger(state, -1)) {
+        error = "campo opcional 'duracao' deve ser número inteiro";
+        lua_pop(state, 1);
+        return false;
+    }
+
+    const lua_Integer duration = lua_tointeger(state, -1);
+    lua_pop(state, 1);
+    if (duration < 0 || duration > std::numeric_limits<int>::max()) {
+        error = "campo opcional 'duracao' está fora do intervalo permitido";
+        return false;
+    }
+
+    output = static_cast<int>(duration);
+    return true;
 }
 
 void rawSetStringField(
@@ -348,6 +520,151 @@ bool LuaEngine::readActionResult(int tableIndex, ActionResult& result) {
     lua_pop(state_, 1);
 
     lua_settop(state_, stackTop);
+    result = candidate;
+    return true;
+}
+
+bool LuaEngine::callAbilityFunction(
+    const std::string& abilityName,
+    const Character& player,
+    const Character& enemy,
+    AbilityResult& result
+) {
+    lastError_.clear();
+
+    if (state_ == nullptr) {
+        lastError_ = "estado Lua não inicializado";
+        return false;
+    }
+    if (abilityName.empty()) {
+        lastError_ = "nome da habilidade não pode ser vazio";
+        return false;
+    }
+    StackGuard guard(state_);
+    rawGetGlobal(state_, "usar_habilidade");
+    if (lua_type(state_, -1) == LUA_TNIL) {
+        lastError_ = "função Lua não encontrada: 'usar_habilidade'";
+        return false;
+    }
+    if (lua_type(state_, -1) != LUA_TFUNCTION) {
+        lastError_ = "'usar_habilidade' existe, mas não é uma função Lua";
+        return false;
+    }
+
+    lua_pushlstring(state_, abilityName.data(), abilityName.size());
+    if (!pushCharacter(player)) {
+        return false;
+    }
+    if (!pushCharacter(enemy)) {
+        return false;
+    }
+
+    if (lua_pcall(state_, 3, 1, 0) != LUA_OK) {
+        const char* message = lua_tostring(state_, -1);
+        lastError_ = "erro ao executar função 'usar_habilidade': "
+            + std::string(message == nullptr ? "erro Lua desconhecido" : message);
+        return false;
+    }
+
+    if (lua_type(state_, -1) != LUA_TTABLE) {
+        const char* typeName = lua_typename(state_, lua_type(state_, -1));
+        lastError_ = "retorno de 'usar_habilidade' deve ser table, recebido: "
+            + std::string(typeName == nullptr ? "desconhecido" : typeName);
+        return false;
+    }
+
+    const int tableIndex = lua_gettop(state_);
+    AbilityResult candidate;
+    std::string validationError;
+    if (!readRequiredBoolean(
+            state_,
+            tableIndex,
+            "sucesso",
+            candidate.success,
+            validationError
+        ) ||
+        !readRequiredString(
+            state_,
+            tableIndex,
+            "mensagem",
+            candidate.message,
+            validationError
+        )) {
+        lastError_ = "retorno inválido de 'usar_habilidade': " + validationError;
+        return false;
+    }
+
+    if (!candidate.success) {
+        result = candidate;
+        return true;
+    }
+
+    std::string type;
+    if (!readRequiredString(
+            state_,
+            tableIndex,
+            "tipo",
+            type,
+            validationError
+        ) ||
+        type != "habilidade") {
+        if (validationError.empty()) {
+            validationError = "campo 'tipo' deve ser 'habilidade'";
+        }
+        lastError_ = "retorno inválido de 'usar_habilidade': " + validationError;
+        return false;
+    }
+
+    if (!readRequiredNonNegativeNumber(
+            state_,
+            tableIndex,
+            "custo",
+            candidate.energyCost,
+            validationError
+        ) ||
+        !readOptionalNonNegativeNumber(
+            state_,
+            tableIndex,
+            "dano",
+            candidate.damage,
+            validationError
+        ) ||
+        !readOptionalNonNegativeNumber(
+            state_,
+            tableIndex,
+            "cura",
+            candidate.healing,
+            validationError
+        ) ||
+        !readOptionalEffect(
+            state_,
+            tableIndex,
+            candidate.effect,
+            validationError
+        ) ||
+        !readOptionalDuration(
+            state_,
+            tableIndex,
+            candidate.duration,
+            validationError
+        )) {
+        lastError_ = "retorno inválido de 'usar_habilidade': " + validationError;
+        return false;
+    }
+
+    if (candidate.effect.empty() && candidate.duration != 0) {
+        lastError_ = "retorno inválido de 'usar_habilidade': duração exige efeito";
+        return false;
+    }
+    if (!candidate.effect.empty() && candidate.duration == 0) {
+        lastError_ = "retorno inválido de 'usar_habilidade': efeito exige duração positiva";
+        return false;
+    }
+    if (!candidate.effect.empty() && candidate.damage <= 0.0) {
+        lastError_ = "retorno inválido de 'usar_habilidade': efeito exige dano positivo";
+        return false;
+    }
+
     result = candidate;
     return true;
 }

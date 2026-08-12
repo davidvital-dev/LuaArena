@@ -1,5 +1,7 @@
 #include "Game.hpp"
 
+#include "LuaEngine.hpp"
+
 #include <limits>
 #include <utility>
 
@@ -70,6 +72,69 @@ bool Game::hasPlayerWon() const noexcept {
 
 bool Game::hasPlayerLost() const noexcept {
     return getBattleOutcome() == BattleOutcome::Defeat;
+}
+
+bool Game::useAbility(
+    LuaEngine& engine,
+    const std::string& abilityIdentifier,
+    AbilityResult& result
+) {
+    result = AbilityResult{};
+
+    if (isBattleOver()) {
+        result.message = "Habilidade ignorada: a batalha já terminou.";
+        return false;
+    }
+    if (!isPlayerTurn()) {
+        result.message = "Habilidade ignorada: não é o turno do jogador.";
+        return false;
+    }
+    if (abilityIdentifier.empty()) {
+        result.message = "Habilidade inválida.";
+        return false;
+    }
+
+    AbilityResult candidate;
+    if (!engine.callAbilityFunction(
+            abilityIdentifier,
+            player_,
+            enemy_,
+            candidate
+        )) {
+        result.message = engine.getLastError();
+        return false;
+    }
+
+    if (!candidate.success) {
+        result = candidate;
+        return false;
+    }
+
+    if (!player_.hasEnoughEnergy(candidate.energyCost)) {
+        result = candidate;
+        result.message = "Energia insuficiente.";
+        return false;
+    }
+    if (!player_.spendEnergy(candidate.energyCost)) {
+        result = candidate;
+        result.message = "Não foi possível descontar a energia da habilidade.";
+        return false;
+    }
+
+    enemy_.takeDamage(candidate.damage);
+    if (!isBattleOver()) {
+        player_.heal(candidate.healing);
+
+        if (candidate.effect == "queimadura") {
+            enemy_.applyBurning(candidate.duration, candidate.damage);
+        } else if (candidate.effect == "veneno") {
+            enemy_.applyPoison(candidate.duration, candidate.damage);
+        }
+    }
+
+    candidate.applied = true;
+    result = candidate;
+    return true;
 }
 
 bool Game::advanceTurn() noexcept {

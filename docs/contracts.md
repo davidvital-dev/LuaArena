@@ -291,7 +291,7 @@ habilidades = {
 | `mensagem` | sim | `string` | Mensagem de resultado ou erro |
 | `tipo` | quando houver sucesso | `string` | Deve ser `habilidade` |
 | `custo` | quando houver sucesso | `number` | Energia consumida |
-| `dano` | não | `number` | Dano descrito pela habilidade |
+| `dano` | não | `number` | Dano inicial da habilidade e, quando `efeito` for `queimadura` ou `veneno`, dano aplicado a cada turno do efeito |
 | `cura` | não | `number` | Cura descrita pela habilidade |
 | `efeito` | não | `string` ou `nil` | Efeito de status |
 | `duracao` | não | número inteiro | Duração do efeito |
