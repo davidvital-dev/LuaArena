@@ -95,6 +95,12 @@ então disponibiliza eventos para aplicação no estado da batalha.
 Consulte [`docs/arenas-e-eventos.md`](docs/arenas-e-eventos.md) para o contrato,
 o ciclo de vida, exemplos de integração e o comportamento de cada arena.
 
+## Motor do jogo
+
+O núcleo C++ mantém personagens, vida, energia, turnos, vitória, derrota e
+efeitos temporários. Consulte [`docs/motor-do-jogo.md`](docs/motor-do-jogo.md)
+para a API, os invariantes e o fluxo recomendado de integração com Lua.
+
 ## Equipe
 
 | Nome | GitHub | Responsabilidade |
