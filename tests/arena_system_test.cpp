@@ -1,7 +1,9 @@
 #include "ActionResult.hpp"
+#include "AbilityResult.hpp"
 #include "ArenaConfig.hpp"
 #include "ArenaEvent.hpp"
 #include "ArenaManager.hpp"
+#include "Character.hpp"
 #include "DifficultyConfig.hpp"
 #include "LuaEngine.hpp"
 
@@ -38,6 +40,14 @@ ArenaCharacter player(double health = 80.0) {
 
 ArenaCharacter enemy(double health = 60.0) {
     return {"Goblin", health, 60.0, 12.0, 3.0, 0.0, 0.0};
+}
+
+Character abilityPlayer(double maximumEnergy = 50.0) {
+    return {"Herói", 100.0, 20.0, 5.0, maximumEnergy};
+}
+
+Character abilityEnemy() {
+    return {"Goblin", 60.0, 12.0, 3.0, 0.0};
 }
 
 void applyTo(ArenaCharacter& character, const ArenaEvent& event) {
@@ -407,6 +417,116 @@ void testLuaEngineActionResultValidation() {
     );
 }
 
+void testLuaEngineAbilityFunction() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado para habilidades");
+    require(
+        engine.loadScript("scripts/abilities/abilities.lua"),
+        "script de habilidades deve carregar: " + engine.getLastError()
+    );
+
+    const Character hero = abilityPlayer();
+    const Character goblin = abilityEnemy();
+    AbilityResult fireball;
+    require(
+        engine.callAbilityFunction("bola_de_fogo", hero, goblin, fireball),
+        "Bola de Fogo deve atravessar a ponte: " + engine.getLastError()
+    );
+    require(fireball.success, "Bola de Fogo aceita pelo script");
+    require(!fireball.applied, "Lua não aplica a habilidade diretamente");
+    require(fireball.message == "Herói usou Bola de Fogo.", "mensagem Lua preservada");
+    require(approximately(fireball.energyCost, 20.0), "custo da Bola de Fogo");
+    require(approximately(fireball.damage, 30.0), "dano da Bola de Fogo");
+    require(approximately(fireball.healing, 0.0), "cura padrão da Bola de Fogo");
+    require(fireball.effect == "queimadura", "efeito da Bola de Fogo");
+    require(fireball.duration == 3, "duração da Bola de Fogo");
+    require(lua_gettop(engine.getState()) == 0, "stack limpa após habilidade válida");
+
+    AbilityResult healing;
+    require(
+        engine.callAbilityFunction("cura", hero, goblin, healing),
+        "Cura deve atravessar a ponte: " + engine.getLastError()
+    );
+    require(healing.success, "Cura aceita pelo script");
+    require(approximately(healing.damage, 0.0), "Cura não causa dano");
+    require(approximately(healing.healing, 25.0), "valor da Cura");
+    require(healing.effect.empty(), "Cura sem efeito de status");
+    require(healing.duration == 0, "Cura sem duração");
+
+    AbilityResult scriptFailure;
+    require(
+        engine.callAbilityFunction("desconhecida", hero, goblin, scriptFailure),
+        "falha válida do script não interrompe a ponte: " + engine.getLastError()
+    );
+    require(!scriptFailure.success, "habilidade desconhecida é recusada pelo script");
+    require(
+        scriptFailure.message.find("desconhecida") != std::string::npos,
+        "falha Lua preserva a mensagem"
+    );
+    require(lua_gettop(engine.getState()) == 0, "stack limpa após recusa Lua");
+
+    LuaEngine missing;
+    require(
+        missing.loadScript("tests/fixtures/missing_action_function.lua"),
+        "fixture sem habilidade deve carregar: " + missing.getLastError()
+    );
+    AbilityResult missingResult;
+    require(
+        !missing.callAbilityFunction("cura", hero, goblin, missingResult),
+        "função usar_habilidade ausente deve falhar"
+    );
+    require(
+        missing.getLastError().find("não encontrada") != std::string::npos,
+        "função ausente gera erro controlado"
+    );
+    require(lua_gettop(missing.getState()) == 0, "stack limpa após função ausente");
+
+    LuaEngine fixture;
+    require(
+        fixture.loadScript("tests/fixtures/ability_functions.lua"),
+        "fixture de habilidades deve carregar: " + fixture.getLastError()
+    );
+
+    AbilityResult defaults;
+    require(
+        fixture.callAbilityFunction("metatable", hero, goblin, defaults),
+        "leitura raw não deve executar metamétodo: " + fixture.getLastError()
+    );
+    require(defaults.success, "retorno raw válido aceito");
+    require(approximately(defaults.damage, 0.0), "dano opcional usa zero");
+    require(approximately(defaults.healing, 0.0), "cura opcional usa zero");
+    require(defaults.effect.empty(), "efeito opcional usa vazio");
+    require(defaults.duration == 0, "duração opcional usa zero");
+
+    AbilityResult untouched;
+    untouched.message = "sentinela";
+    const std::vector<std::string> invalidReturns = {
+        "retorno_invalido",
+        "sem_tipo",
+        "numero_invalido",
+        "duracao_invalida",
+        "efeito_invalido",
+        "erro",
+    };
+    for (const std::string& abilityName : invalidReturns) {
+        require(
+            !fixture.callAbilityFunction(abilityName, hero, goblin, untouched),
+            "retorno inválido deve falhar: " + abilityName
+        );
+        require(!fixture.getLastError().empty(), "falha registra erro controlado");
+        require(lua_gettop(fixture.getState()) == 0, "stack recuperada após falha");
+    }
+    require(untouched.message == "sentinela", "resultado preservado após falha");
+
+    AbilityResult recovered;
+    require(
+        fixture.callAbilityFunction("valida", hero, goblin, recovered),
+        "engine recupera depois de falhas: " + fixture.getLastError()
+    );
+    require(recovered.success, "chamada posterior permanece utilizável");
+    require(lua_gettop(fixture.getState()) == 0, "stack limpa após recuperação");
+}
+
 void testExistingAbilitiesScript() {
     lua_State* state = luaL_newstate();
     require(state != nullptr, "criação do estado Lua para habilidades");
@@ -435,6 +555,7 @@ int main() {
         {"script Lua com erro de sintaxe", testLuaEngineSyntaxError},
         {"função Lua ausente", testLuaEngineMissingFunction},
         {"validação de retorno ActionResult", testLuaEngineActionResultValidation},
+        {"ponte de habilidades Lua", testLuaEngineAbilityFunction},
         {"integração com habilidades", testExistingAbilitiesScript},
     };
 

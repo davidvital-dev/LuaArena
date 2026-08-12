@@ -44,7 +44,7 @@ TEST_TARGET := $(BUILD_DIR)/arena-system-test
 TEST_SRCS := $(filter-out $(SRC_DIR)/main.cpp,$(SRCS)) tests/arena_system_test.cpp
 GAME_ENGINE_TEST_TARGET := $(BUILD_DIR)/game-engine-test
 GAME_ENGINE_TEST_SRCS := $(SRC_DIR)/ActionMenu.cpp $(SRC_DIR)/Character.cpp \
-	$(SRC_DIR)/Game.cpp tests/game_engine_test.cpp
+	$(SRC_DIR)/Game.cpp $(SRC_DIR)/LuaEngine.cpp tests/game_engine_test.cpp
 
 # =============================================================
 # Alvos principais
@@ -80,7 +80,7 @@ $(TEST_TARGET): $(TEST_SRCS) | $(BUILD_STAMP)
 	$(CXX) $(CXXFLAGS) $(TEST_SRCS) -o $@ $(LDLIBS)
 
 $(GAME_ENGINE_TEST_TARGET): $(GAME_ENGINE_TEST_SRCS) | $(BUILD_STAMP)
-	$(CXX) $(CXXFLAGS) $(GAME_ENGINE_TEST_SRCS) -o $@
+	$(CXX) $(CXXFLAGS) $(GAME_ENGINE_TEST_SRCS) -o $@ $(LDLIBS)
 
 clean:
 	rm -rf $(BUILD_DIR)

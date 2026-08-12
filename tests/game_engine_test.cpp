@@ -1,6 +1,7 @@
 #include "ActionMenu.hpp"
 #include "Character.hpp"
 #include "Game.hpp"
+#include "LuaEngine.hpp"
 
 #include <cmath>
 #include <functional>
@@ -219,6 +220,114 @@ void testActionMenu() {
     require(emptyEntryRejected, "habilidade vazia rejeitada");
 }
 
+void testAbilityApplication() {
+    LuaEngine engine;
+    require(
+        engine.loadScript("scripts/abilities/abilities.lua"),
+        "script de habilidades deve carregar: " + engine.getLastError()
+    );
+
+    Game fire{mage(), goblin()};
+    AbilityResult fireResult;
+    require(
+        fire.useAbility(engine, "bola_de_fogo", fireResult),
+        "Bola de Fogo deve ser aplicada: " + fireResult.message
+    );
+    require(fireResult.success && fireResult.applied, "resultado confirma aplicação");
+    require(approximately(fire.getPlayer().getEnergy(), 30.0), "custo descontado por C++");
+    require(approximately(fire.getEnemy().getHealth(), 33.0), "dano respeita defesa");
+    require(fire.getEnemy().isBurning(), "queimadura aplicada por C++");
+    require(
+        approximately(fire.getEnemy().processBurning(), 30.0),
+        "queimadura usa valor validado pela ponte"
+    );
+
+    Game healing{mage(), goblin()};
+    healing.getPlayer().takeDamage(30.0);
+    AbilityResult healingResult;
+    require(
+        healing.useAbility(engine, "cura", healingResult),
+        "Cura deve ser aplicada: " + healingResult.message
+    );
+    require(healingResult.applied, "Cura marcada como aplicada");
+    require(approximately(healing.getPlayer().getEnergy(), 35.0), "custo da Cura");
+    require(approximately(healing.getPlayer().getHealth(), 100.0), "cura limitada à vida máxima");
+
+    Game poison{mage(), goblin()};
+    AbilityResult poisonResult;
+    require(
+        poison.useAbility(engine, "golpe_venenoso", poisonResult),
+        "Golpe Venenoso deve ser aplicado: " + poisonResult.message
+    );
+    require(approximately(poison.getEnemy().getHealth(), 48.0), "dano do veneno");
+    require(poison.getEnemy().isPoisoned(), "veneno aplicado por C++");
+    require(
+        approximately(poison.getEnemy().processPoison(), 15.0),
+        "veneno usa valor validado pela ponte"
+    );
+
+    Game insufficientEnergy{
+        {"Mago", 100.0, 20.0, 5.0, 19.0},
+        goblin(),
+    };
+    AbilityResult insufficientResult;
+    require(
+        !insufficientEnergy.useAbility(engine, "bola_de_fogo", insufficientResult),
+        "energia insuficiente não aplica habilidade"
+    );
+    require(!insufficientResult.success && !insufficientResult.applied, "recusa Lua preservada");
+    require(approximately(insufficientEnergy.getPlayer().getEnergy(), 19.0), "falha não gasta energia");
+    require(approximately(insufficientEnergy.getEnemy().getHealth(), 60.0), "falha não causa dano");
+
+    Game enemyTurn{mage(), goblin()};
+    require(enemyTurn.advanceTurn(), "avança para turno inimigo");
+    AbilityResult enemyTurnResult;
+    require(
+        !enemyTurn.useAbility(engine, "cura", enemyTurnResult),
+        "habilidade fora do turno do jogador é recusada"
+    );
+    require(!enemyTurnResult.applied, "turno inválido não aplica ação");
+    require(approximately(enemyTurn.getPlayer().getEnergy(), 50.0), "turno inválido não gasta energia");
+
+    Game endedBattle{mage(), goblin()};
+    endedBattle.getEnemy().takeDamage(500.0);
+    AbilityResult endedBattleResult;
+    require(
+        !endedBattle.useAbility(engine, "cura", endedBattleResult),
+        "habilidade após fim da batalha é recusada"
+    );
+    require(!endedBattleResult.applied, "batalha encerrada não aplica ação");
+
+    LuaEngine fixture;
+    require(
+        fixture.loadScript("tests/fixtures/ability_functions.lua"),
+        "fixture deve carregar: " + fixture.getLastError()
+    );
+    Game revalidated{mage(), goblin()};
+    AbilityResult revalidatedResult;
+    require(
+        !revalidated.useAbility(
+            fixture,
+            "energia_insuficiente_cpp",
+            revalidatedResult
+        ),
+        "C++ deve revalidar a energia descrita por Lua"
+    );
+    require(revalidatedResult.success && !revalidatedResult.applied, "Lua válida não basta sem energia C++");
+    require(approximately(revalidated.getPlayer().getEnergy(), 50.0), "revalidação preserva energia");
+    require(approximately(revalidated.getEnemy().getHealth(), 60.0), "revalidação preserva alvo");
+
+    Game malformed{mage(), goblin()};
+    AbilityResult malformedResult;
+    require(
+        !malformed.useAbility(fixture, "numero_invalido", malformedResult),
+        "retorno Lua malformado não aplica habilidade"
+    );
+    require(!malformedResult.applied, "retorno malformado não é aplicado");
+    require(approximately(malformed.getPlayer().getEnergy(), 50.0), "erro Lua não gasta energia");
+    require(approximately(malformed.getEnemy().getHealth(), 60.0), "erro Lua não altera inimigo");
+}
+
 }  // namespace
 
 int main() {
@@ -230,6 +339,7 @@ int main() {
         {"sequencia de turnos", testTurnSequence},
         {"vitoria e derrota", testVictoryAndDefeat},
         {"menu de acoes", testActionMenu},
+        {"integração de habilidades", testAbilityApplication},
     };
 
     int failures = 0;
