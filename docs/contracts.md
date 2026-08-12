@@ -326,6 +326,19 @@ configuracao = {
 
 O C++ deve rejeitar valores fora desses limites e aplicar valores-padrão seguros.
 
+`DifficultyLoader` trata cada campo de maneira independente. Campo ausente, com
+tipo incorreto, não finito ou fora do intervalo gera aviso e usa o valor-padrão:
+
+```text
+multiplicador_vida = 1.0
+multiplicador_ataque = 1.0
+chance_critico = 0.10
+cura_habilitada = true
+```
+
+Erro de sintaxe, erro de execução ou ausência da tabela `configuracao` rejeita o
+script inteiro e preserva a configuração carregada anteriormente.
+
 ---
 
 ## 7. Configuração de arena
@@ -353,6 +366,19 @@ arena = {
 
 Os modificadores devem ser números não negativos. Campos desconhecidos podem ser ignorados com registro de aviso.
 
+### Modificadores reconhecidos
+
+| Campo Lua | Uso |
+|---|---|
+| `dano_fogo` | Fator aplicado a dano de fogo |
+| `dano_veneno` | Fator aplicado a dano de veneno |
+| `cura` | Fator aplicado a valores de cura |
+
+O fator neutro é `1.0`. Quando um campo reconhecido não aparece na tabela,
+`ArenaConfig::modifier` devolve esse fator sem exigir que o script o declare.
+Nome e descrição vazios, modificadores com tipo incorreto e valores negativos,
+`NaN` ou infinitos rejeitam a arena.
+
 ---
 
 ## 8. Eventos de arena
@@ -366,6 +392,11 @@ ao_finalizar_batalha(resultado, jogador, inimigo)
 ```
 
 Os hooks são opcionais. Se não existirem, o C++ continua a batalha normalmente.
+
+`ArenaManager` executa cada hook com `lua_pcall`, restaura a Lua Stack depois da
+chamada e converte apenas retornos validados. Um hook ausente equivale a `nil`;
+um hook com tipo incorreto, que lança erro ou retorna dados inválidos é ignorado
+com erro controlado, sem encerrar o processo.
 
 ### `ao_iniciar_batalha`
 
@@ -475,6 +506,21 @@ game_log("O Goblin entrou em modo de desespero.")
 
 Uma segunda função concreta poderá ser registrada para atender à demonstração de bindings, desde que seja documentada antes de seu uso pelos scripts.
 
+### `obter_turno_atual`
+
+```lua
+local turno = obter_turno_atual()
+```
+
+- não recebe argumentos;
+- retorna um inteiro não negativo;
+- o valor pertence ao estado Lua atual e é atualizado pelo C++ antes de
+  `ao_iniciar_turno`;
+- chamada com argumentos gera erro Lua controlado.
+
+A Arena Vulcânica usa essa função para confirmar o turno que dispara a onda de
+calor.
+
 ---
 
 ## 10. Validação obrigatória no C++
@@ -550,6 +596,10 @@ ao_finalizar_batalha(resultado, jogador, inimigo)
 
 -- Binding C++ acessível por Lua
 game_log(mensagem)
+obter_turno_atual()
 ```
 
-Este documento deve ser usado como referência por todos os integrantes durante a implementação e os testes de integração.
+O guia operacional e os cenários de teste ficam em
+[`arenas-e-eventos.md`](arenas-e-eventos.md). Este documento deve ser usado como
+referência por todos os integrantes durante a implementação e os testes de
+integração.
