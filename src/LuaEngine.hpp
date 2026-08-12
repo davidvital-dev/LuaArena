@@ -3,6 +3,7 @@
 #include <string>
 
 #include "ActionResult.hpp"
+#include "Character.hpp"
 
 struct lua_State;
 
@@ -26,6 +27,11 @@ public:
     // resultCount > 0, os retornos ficam empilhados para o chamador.
     bool callFunction(const std::string& functionName, int resultCount = 0);
 
+    // Converte o estado atual de um Character para a tabela Lua definida em
+    // docs/contracts.md, seção 2. Em caso de sucesso, a tabela fica no topo
+    // da stack. Dados inválidos são rejeitados sem alterar a stack.
+    bool pushCharacter(const Character& character);
+
     // Chama uma função Lua sem argumentos esperando 1 retorno, e valida e
     // converte esse retorno para ActionResult. Em qualquer falha (função
     // ausente, tipo errado, retorno que não é table, campo obrigatório
@@ -39,6 +45,8 @@ public:
     const lua_State* getState() const noexcept;
 
 private:
+    bool readActionResult(int tableIndex, ActionResult& result);
+
     lua_State* state_;
     std::string lastError_;
 };
