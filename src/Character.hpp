@@ -28,6 +28,9 @@ public:
     // Aplica dano apos a reducao pela defesa e retorna a vida removida.
     double takeDamage(double amount) noexcept;
 
+    // Recupera vida sem ultrapassar o limite e retorna a cura efetiva.
+    double heal(double amount) noexcept;
+
 private:
     std::string name_;
     double health_;

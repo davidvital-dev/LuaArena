@@ -68,3 +68,15 @@ double Character::takeDamage(double amount) noexcept {
     health_ = std::max(0.0, health_ - effectiveDamage);
     return previousHealth - health_;
 }
+
+double Character::heal(double amount) noexcept {
+    if (!std::isfinite(amount) || amount <= 0.0 || isDefeated() ||
+        !std::isfinite(health_) || !std::isfinite(maximumHealth_) ||
+        health_ >= maximumHealth_) {
+        return 0.0;
+    }
+
+    const double previousHealth = health_;
+    health_ = std::min(maximumHealth_, health_ + amount);
+    return health_ - previousHealth;
+}
