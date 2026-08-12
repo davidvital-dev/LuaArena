@@ -107,54 +107,86 @@ double Character::restoreEnergy(double amount) noexcept {
     return energy_ - previousEnergy;
 }
 
-bool Character::applyBurning(int duration, double damagePerTurn) noexcept {
+bool Character::applyBurning(int duration, double damagePerTurn) {
+    return applyDamageOverTime("queimadura", duration, damagePerTurn);
+}
+
+bool Character::isBurning() const noexcept {
+    return hasDamageOverTime("queimadura");
+}
+
+double Character::processBurning() noexcept {
+    return processDamageOverTime("queimadura");
+}
+
+bool Character::applyPoison(int duration, double damagePerTurn) {
+    return applyDamageOverTime("veneno", duration, damagePerTurn);
+}
+
+bool Character::isPoisoned() const noexcept {
+    return hasDamageOverTime("veneno");
+}
+
+double Character::processPoison() noexcept {
+    return processDamageOverTime("veneno");
+}
+
+bool Character::applyDamageOverTime(
+    const char* effectName,
+    int duration,
+    double damagePerTurn
+) {
     if (duration <= 0 || !std::isfinite(damagePerTurn) ||
         damagePerTurn <= 0.0 || isDefeated()) {
         return false;
     }
 
-    const auto burning = std::find_if(
+    const auto effect = std::find_if(
         statusEffects_.begin(),
         statusEffects_.end(),
-        [](const StatusEffect& effect) { return effect.name == "queimadura"; }
+        [effectName](const StatusEffect& current) {
+            return current.name == effectName;
+        }
     );
 
-    if (burning != statusEffects_.end()) {
-        burning->remainingTurns = duration;
-        burning->valuePerTurn = damagePerTurn;
+    if (effect != statusEffects_.end()) {
+        effect->remainingTurns = duration;
+        effect->valuePerTurn = damagePerTurn;
     } else {
-        statusEffects_.push_back({"queimadura", duration, damagePerTurn});
+        statusEffects_.push_back({effectName, duration, damagePerTurn});
     }
 
     return true;
 }
 
-bool Character::isBurning() const noexcept {
+bool Character::hasDamageOverTime(const char* effectName) const noexcept {
     return std::any_of(
         statusEffects_.begin(),
         statusEffects_.end(),
-        [](const StatusEffect& effect) {
-            return effect.name == "queimadura" && effect.remainingTurns > 0;
+        [effectName](const StatusEffect& effect) {
+            return effect.name == effectName && effect.remainingTurns > 0;
         }
     );
 }
 
-double Character::processBurning() noexcept {
-    const auto burning = std::find_if(
+double Character::processDamageOverTime(const char* effectName) noexcept {
+    const auto effect = std::find_if(
         statusEffects_.begin(),
         statusEffects_.end(),
-        [](const StatusEffect& effect) { return effect.name == "queimadura"; }
+        [effectName](const StatusEffect& current) {
+            return current.name == effectName;
+        }
     );
 
-    if (burning == statusEffects_.end() || isDefeated()) {
+    if (effect == statusEffects_.end() || isDefeated()) {
         return 0.0;
     }
 
-    const double appliedDamage = takeDirectDamage(burning->valuePerTurn);
-    --burning->remainingTurns;
+    const double appliedDamage = takeDirectDamage(effect->valuePerTurn);
+    --effect->remainingTurns;
 
-    if (burning->remainingTurns <= 0) {
-        statusEffects_.erase(burning);
+    if (effect->remainingTurns <= 0) {
+        statusEffects_.erase(effect);
     }
 
     return appliedDamage;

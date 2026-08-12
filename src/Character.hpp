@@ -37,13 +37,26 @@ public:
     // Recupera energia sem ultrapassar o limite e retorna o valor efetivo.
     double restoreEnergy(double amount) noexcept;
 
-    bool applyBurning(int duration, double damagePerTurn) noexcept;
+    bool applyBurning(int duration, double damagePerTurn);
     bool isBurning() const noexcept;
 
     // Processa um turno de queimadura e retorna o dano efetivo.
     double processBurning() noexcept;
 
+    bool applyPoison(int duration, double damagePerTurn);
+    bool isPoisoned() const noexcept;
+
+    // Processa um turno de veneno e retorna o dano efetivo.
+    double processPoison() noexcept;
+
 private:
+    bool applyDamageOverTime(
+        const char* effectName,
+        int duration,
+        double damagePerTurn
+    );
+    bool hasDamageOverTime(const char* effectName) const noexcept;
+    double processDamageOverTime(const char* effectName) noexcept;
     double takeDirectDamage(double amount) noexcept;
 
     std::string name_;
