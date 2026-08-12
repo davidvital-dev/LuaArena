@@ -1,5 +1,6 @@
 #include "Game.hpp"
 
+#include <limits>
 #include <utility>
 
 Game::Game(Character player, Character enemy)
@@ -19,4 +20,47 @@ Character& Game::getEnemy() noexcept {
 
 const Character& Game::getEnemy() const noexcept {
     return enemy_;
+}
+
+int Game::getTurnNumber() const noexcept {
+    return turnNumber_;
+}
+
+TurnOwner Game::getTurnOwner() const noexcept {
+    return turnOwner_;
+}
+
+bool Game::isPlayerTurn() const noexcept {
+    return turnOwner_ == TurnOwner::Player;
+}
+
+Character& Game::getCurrentCharacter() noexcept {
+    return isPlayerTurn() ? player_ : enemy_;
+}
+
+const Character& Game::getCurrentCharacter() const noexcept {
+    return isPlayerTurn() ? player_ : enemy_;
+}
+
+Character& Game::getOpponent() noexcept {
+    return isPlayerTurn() ? enemy_ : player_;
+}
+
+const Character& Game::getOpponent() const noexcept {
+    return isPlayerTurn() ? enemy_ : player_;
+}
+
+bool Game::advanceTurn() noexcept {
+    if (isPlayerTurn()) {
+        turnOwner_ = TurnOwner::Enemy;
+        return true;
+    }
+
+    if (turnNumber_ == std::numeric_limits<int>::max()) {
+        return false;
+    }
+
+    ++turnNumber_;
+    turnOwner_ = TurnOwner::Player;
+    return true;
 }
