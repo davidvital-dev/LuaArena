@@ -80,3 +80,29 @@ double Character::heal(double amount) noexcept {
     health_ = std::min(maximumHealth_, health_ + amount);
     return health_ - previousHealth;
 }
+
+bool Character::hasEnoughEnergy(double amount) const noexcept {
+    return !isDefeated() && std::isfinite(amount) && amount >= 0.0 &&
+           std::isfinite(energy_) && energy_ >= amount;
+}
+
+bool Character::spendEnergy(double amount) noexcept {
+    if (!hasEnoughEnergy(amount)) {
+        return false;
+    }
+
+    energy_ = std::max(0.0, energy_ - amount);
+    return true;
+}
+
+double Character::restoreEnergy(double amount) noexcept {
+    if (!std::isfinite(amount) || amount <= 0.0 || isDefeated() ||
+        !std::isfinite(energy_) || !std::isfinite(maximumEnergy_) ||
+        energy_ >= maximumEnergy_) {
+        return 0.0;
+    }
+
+    const double previousEnergy = energy_;
+    energy_ = std::min(maximumEnergy_, energy_ + amount);
+    return energy_ - previousEnergy;
+}

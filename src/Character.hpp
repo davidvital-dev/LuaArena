@@ -31,6 +31,12 @@ public:
     // Recupera vida sem ultrapassar o limite e retorna a cura efetiva.
     double heal(double amount) noexcept;
 
+    bool hasEnoughEnergy(double amount) const noexcept;
+    bool spendEnergy(double amount) noexcept;
+
+    // Recupera energia sem ultrapassar o limite e retorna o valor efetivo.
+    double restoreEnergy(double amount) noexcept;
+
 private:
     std::string name_;
     double health_;
