@@ -106,3 +106,66 @@ double Character::restoreEnergy(double amount) noexcept {
     energy_ = std::min(maximumEnergy_, energy_ + amount);
     return energy_ - previousEnergy;
 }
+
+bool Character::applyBurning(int duration, double damagePerTurn) noexcept {
+    if (duration <= 0 || !std::isfinite(damagePerTurn) ||
+        damagePerTurn <= 0.0 || isDefeated()) {
+        return false;
+    }
+
+    const auto burning = std::find_if(
+        statusEffects_.begin(),
+        statusEffects_.end(),
+        [](const StatusEffect& effect) { return effect.name == "queimadura"; }
+    );
+
+    if (burning != statusEffects_.end()) {
+        burning->remainingTurns = duration;
+        burning->valuePerTurn = damagePerTurn;
+    } else {
+        statusEffects_.push_back({"queimadura", duration, damagePerTurn});
+    }
+
+    return true;
+}
+
+bool Character::isBurning() const noexcept {
+    return std::any_of(
+        statusEffects_.begin(),
+        statusEffects_.end(),
+        [](const StatusEffect& effect) {
+            return effect.name == "queimadura" && effect.remainingTurns > 0;
+        }
+    );
+}
+
+double Character::processBurning() noexcept {
+    const auto burning = std::find_if(
+        statusEffects_.begin(),
+        statusEffects_.end(),
+        [](const StatusEffect& effect) { return effect.name == "queimadura"; }
+    );
+
+    if (burning == statusEffects_.end() || isDefeated()) {
+        return 0.0;
+    }
+
+    const double appliedDamage = takeDirectDamage(burning->valuePerTurn);
+    --burning->remainingTurns;
+
+    if (burning->remainingTurns <= 0) {
+        statusEffects_.erase(burning);
+    }
+
+    return appliedDamage;
+}
+
+double Character::takeDirectDamage(double amount) noexcept {
+    if (!std::isfinite(amount) || amount <= 0.0 || isDefeated()) {
+        return 0.0;
+    }
+
+    const double previousHealth = health_;
+    health_ = std::max(0.0, health_ - amount);
+    return previousHealth - health_;
+}

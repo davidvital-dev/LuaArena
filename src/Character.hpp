@@ -37,7 +37,15 @@ public:
     // Recupera energia sem ultrapassar o limite e retorna o valor efetivo.
     double restoreEnergy(double amount) noexcept;
 
+    bool applyBurning(int duration, double damagePerTurn) noexcept;
+    bool isBurning() const noexcept;
+
+    // Processa um turno de queimadura e retorna o dano efetivo.
+    double processBurning() noexcept;
+
 private:
+    double takeDirectDamage(double amount) noexcept;
+
     std::string name_;
     double health_;
     double maximumHealth_;
