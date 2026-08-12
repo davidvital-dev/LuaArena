@@ -1,5 +1,7 @@
 #include "Character.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 Character::Character(
@@ -51,4 +53,18 @@ const std::vector<StatusEffect>& Character::getStatusEffects() const noexcept {
 
 bool Character::isDefeated() const noexcept {
     return health_ <= 0.0;
+}
+
+double Character::takeDamage(double amount) noexcept {
+    if (!std::isfinite(amount) || amount <= 0.0 || isDefeated()) {
+        return 0.0;
+    }
+
+    const double validDefense =
+        std::isfinite(defense_) ? std::max(0.0, defense_) : 0.0;
+    const double effectiveDamage = std::max(0.0, amount - validDefense);
+    const double previousHealth = health_;
+
+    health_ = std::max(0.0, health_ - effectiveDamage);
+    return previousHealth - health_;
 }

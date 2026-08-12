@@ -25,6 +25,9 @@ public:
     const std::vector<StatusEffect>& getStatusEffects() const noexcept;
     bool isDefeated() const noexcept;
 
+    // Aplica dano apos a reducao pela defesa e retorna a vida removida.
+    double takeDamage(double amount) noexcept;
+
 private:
     std::string name_;
     double health_;
