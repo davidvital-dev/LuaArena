@@ -1,14 +1,110 @@
-// Harness mínimo: teste para provar que troca o script de inimigo passado por linha de comando muda o comportamento de escolher_acao() usando o mesmo binário, sem recompilar o C++.
+// Ponto de entrada do LuaArena: monta a batalha, roda o loop até vitória ou
+// derrota e usa a LuaEngine para consultar a decisão do inimigo a cada
+// turno. Trocar o script de inimigo (argv[1]) muda o comportamento do
+// inimigo sem exigir recompilação do C++.
+#include "ActionMenu.hpp"
+#include "ActionResult.hpp"
+#include "AbilityResult.hpp"
 #include "Character.hpp"
+#include "Game.hpp"
 #include "LuaEngine.hpp"
 
-extern "C" {
-#include <lauxlib.h>
-#include <lua.h>
+#include <iostream>
+#include <optional>
+#include <string>
+
+namespace {
+
+constexpr const char* kAbilitiesScript = "scripts/abilities/abilities.lua";
+
+void printBattleState(const Game& game) {
+    const Character& player = game.getPlayer();
+    const Character& enemy = game.getEnemy();
+
+    std::cout << "\n-- Turno " << game.getTurnNumber() << " --\n"
+              << player.getName() << ": " << player.getHealth() << "/"
+              << player.getMaximumHealth() << " vida, " << player.getEnergy()
+              << "/" << player.getMaximumEnergy() << " energia\n"
+              << enemy.getName() << ": " << enemy.getHealth() << "/"
+              << enemy.getMaximumHealth() << " vida\n";
 }
 
-#include <iostream>
-#include <string>
+// Aplica o ActionResult já validado pela LuaEngine no estado C++. A
+// LuaEngine só descreve a ação; quem decide o que acontece com vida,
+// energia e status é sempre o C++.
+void applyEnemyAction(Game& game, const ActionResult& action) {
+    Character& player = game.getPlayer();
+    Character& enemy = game.getEnemy();
+
+    std::cout << action.message << '\n';
+
+    if (action.type == "ataque") {
+        player.takeDamage(action.value);
+    } else if (action.type == "cura") {
+        enemy.heal(action.value);
+    }
+
+    if (!game.isBattleOver()) {
+        if (action.effect == "queimadura") {
+            player.applyBurning(action.duration, action.value);
+        } else if (action.effect == "veneno") {
+            player.applyPoison(action.duration, action.value);
+        }
+    }
+}
+
+void runEnemyTurn(Game& game, LuaEngine& enemyEngine) {
+    ActionResult decision;
+
+    if (!enemyEngine.callEnemyActionFunction(
+            game.getEnemy(),
+            game.getPlayer(),
+            decision
+        )) {
+        std::cout << "Inimigo não pôde agir (" << enemyEngine.getLastError()
+                  << "). Turno perdido.\n";
+        return;
+    }
+
+    applyEnemyAction(game, decision);
+}
+
+void runPlayerTurn(Game& game, LuaEngine& abilityEngine, const ActionMenu& menu) {
+    const std::optional<PlayerActionSelection> selection =
+        menu.readSelection(std::cin, std::cout);
+
+    if (!selection) {
+        std::cout << "Entrada encerrada.\n";
+        return;
+    }
+
+    if (selection->type == PlayerActionType::BasicAttack) {
+        Character& player = game.getPlayer();
+        Character& enemy = game.getEnemy();
+        std::cout << player.getName() << " ataca com um golpe básico.\n";
+        enemy.takeDamage(player.getAttack());
+        return;
+    }
+
+    AbilityResult result;
+    if (!game.useAbility(abilityEngine, selection->abilityIdentifier, result)) {
+        std::cout << "Habilidade recusada: " << result.message << '\n';
+        return;
+    }
+
+    std::cout << result.message << '\n';
+}
+
+void printOutcome(const Game& game) {
+    std::cout << "\n=== Fim de batalha ===\n";
+    if (game.hasPlayerWon()) {
+        std::cout << game.getPlayer().getName() << " venceu!\n";
+    } else if (game.hasPlayerLost()) {
+        std::cout << game.getEnemy().getName() << " venceu!\n";
+    }
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -16,63 +112,59 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const std::string scriptPath = argv[1];
+    const std::string enemyScriptPath = argv[1];
 
-    LuaEngine engine;
-    if (!engine.isInitialized()) {
-        std::cerr << "falha ao inicializar o estado Lua\n";
+    LuaEngine enemyEngine;
+    if (!enemyEngine.isInitialized()) {
+        std::cerr << "falha ao inicializar o estado Lua do inimigo\n";
+        return 1;
+    }
+    if (!enemyEngine.loadScript(enemyScriptPath)) {
+        std::cerr << "falha ao carregar script de inimigo: "
+                  << enemyEngine.getLastError() << '\n';
         return 1;
     }
 
-    if (!engine.loadScript(scriptPath)) {
-        std::cerr << "falha ao carregar script: " << engine.getLastError() << '\n';
+    LuaEngine abilityEngine;
+    if (!abilityEngine.isInitialized()) {
+        std::cerr << "falha ao inicializar o estado Lua de habilidades\n";
+        return 1;
+    }
+    if (!abilityEngine.loadScript(kAbilitiesScript)) {
+        std::cerr << "falha ao carregar habilidades: "
+                  << abilityEngine.getLastError() << '\n';
         return 1;
     }
 
-    // Dados fixos só para exercitar escolher_acao(inimigo, jogador).
-    const Character enemy{"Goblin", 60.0, 12.0, 3.0, 0.0};
-    const Character player{"Herói", 100.0, 40.0, 5.0, 50.0};
+    Game game{
+        Character{"Herói", 100.0, 20.0, 5.0, 50.0},
+        Character{"Goblin", 60.0, 12.0, 3.0, 0.0},
+    };
 
-    lua_State* state = engine.getState();
+    const ActionMenu menu{{
+        {"bola_de_fogo", "Bola de Fogo"},
+        {"cura", "Cura"},
+        {"golpe_venenoso", "Golpe Venenoso"},
+    }};
 
-    lua_getglobal(state, "escolher_acao");
-    if (!lua_isfunction(state, -1)) {
-        std::cerr << "script não define escolher_acao\n";
-        return 1;
+    std::cout << "=== Lua Arena ===\n";
+    std::cout << "Inimigo controlado por: " << enemyScriptPath << "\n";
+
+    while (!game.isBattleOver()) {
+        printBattleState(game);
+
+        if (game.isPlayerTurn()) {
+            runPlayerTurn(game, abilityEngine, menu);
+        } else {
+            runEnemyTurn(game, enemyEngine);
+        }
+
+        if (game.isBattleOver()) {
+            break;
+        }
+        game.advanceTurn();
     }
 
-    if (!engine.pushCharacter(enemy) || !engine.pushCharacter(player)) {
-        std::cerr << "falha ao montar tabelas de personagem: "
-                  << engine.getLastError() << '\n';
-        return 1;
-    }
-
-    if (lua_pcall(state, 2, 1, 0) != LUA_OK) {
-        const char* message = lua_tostring(state, -1);
-        std::cerr << "erro ao chamar escolher_acao: "
-                  << (message == nullptr ? "erro Lua desconhecido" : message)
-                  << '\n';
-        return 1;
-    }
-
-    if (!lua_istable(state, -1)) {
-        std::cerr << "escolher_acao não retornou uma table\n";
-        return 1;
-    }
-
-    lua_getfield(state, -1, "tipo");
-    lua_getfield(state, -2, "valor");
-    lua_getfield(state, -3, "mensagem");
-
-    const char* type = lua_tostring(state, -3);
-    const double value = lua_tonumber(state, -2);
-    const char* message = lua_tostring(state, -1);
-
-    std::cout << "script: " << scriptPath << '\n';
-    std::cout << "  tipo=" << (type == nullptr ? "?" : type)
-              << " valor=" << value
-              << " mensagem=\"" << (message == nullptr ? "" : message) << "\"\n";
-
-    lua_pop(state, 4);  // mensagem, valor, tipo, tabela de retorno
+    printOutcome(game);
     return 0;
 }
