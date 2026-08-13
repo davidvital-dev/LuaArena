@@ -669,6 +669,52 @@ bool LuaEngine::callAbilityFunction(
     return true;
 }
 
+bool LuaEngine::callEnemyActionFunction(
+    const Character& enemy,
+    const Character& player,
+    ActionResult& result
+) {
+    lastError_.clear();
+
+    if (state_ == nullptr) {
+        lastError_ = "estado Lua não inicializado";
+        return false;
+    }
+
+    StackGuard guard(state_);
+    rawGetGlobal(state_, "escolher_acao");
+    if (lua_type(state_, -1) == LUA_TNIL) {
+        lastError_ = "função Lua não encontrada: 'escolher_acao'";
+        return false;
+    }
+    if (lua_type(state_, -1) != LUA_TFUNCTION) {
+        lastError_ = "'escolher_acao' existe, mas não é uma função Lua";
+        return false;
+    }
+
+    if (!pushCharacter(enemy)) {
+        return false;
+    }
+    if (!pushCharacter(player)) {
+        return false;
+    }
+
+    if (lua_pcall(state_, 2, 1, 0) != LUA_OK) {
+        const char* message = lua_tostring(state_, -1);
+        lastError_ = "erro ao executar função 'escolher_acao': "
+            + std::string(message == nullptr ? "erro Lua desconhecido" : message);
+        return false;
+    }
+
+    ActionResult candidate;
+    if (!readActionResult(-1, candidate)) {
+        return false;
+    }
+
+    result = candidate;
+    return true;
+}
+
 const std::string& LuaEngine::getLastError() const noexcept {
     return lastError_;
 }
