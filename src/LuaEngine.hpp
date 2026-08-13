@@ -52,6 +52,18 @@ public:
         AbilityResult& result
     );
 
+    // Chama escolher_acao(inimigo, jogador) e converte o retorno para
+    // ActionResult, reaproveitando pushCharacter e a mesma validação de
+    // callActionFunction/readActionResult (docs/contracts.md, seções 3 e 4).
+    // Função ausente, tipo incorreto ou retorno inválido não alteram
+    // `result` e ficam descritos em getLastError(), sem interromper o
+    // programa.
+    bool callEnemyActionFunction(
+        const Character& enemy,
+        const Character& player,
+        ActionResult& result
+    );
+
     const std::string& getLastError() const noexcept;
     lua_State* getState() noexcept;
     const lua_State* getState() const noexcept;
