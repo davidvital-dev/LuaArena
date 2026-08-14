@@ -156,6 +156,131 @@ void testInvalidActionResults() {
     );
 }
 
+void testEnemyActionScriptsDifferForSameState() {
+    LuaEngine basicEngine;
+    require(basicEngine.isInitialized(), "estado Lua inicializado");
+    require(
+        basicEngine.loadScript("scripts/enemies/goblin_basic.lua"),
+        basicEngine.getLastError()
+    );
+
+    LuaEngine aggressiveEngine;
+    require(aggressiveEngine.isInitialized(), "estado Lua inicializado");
+    require(
+        aggressiveEngine.loadScript("scripts/enemies/goblin_aggressive.lua"),
+        aggressiveEngine.getLastError()
+    );
+
+    const Character enemy{"Goblin", 60.0, 12.0, 3.0, 0.0};
+    const Character healthyPlayer{"Herói", 100.0, 20.0, 5.0, 50.0};
+
+    ActionResult basicResult;
+    require(
+        basicEngine.callEnemyActionFunction(enemy, healthyPlayer, basicResult),
+        basicEngine.getLastError()
+    );
+    require(basicResult.type == "ataque", "goblin_basic: tipo permitido pelo contrato");
+    require(approximately(basicResult.value, 12.0), "goblin_basic: valor igual ao ataque-base");
+
+    ActionResult aggressiveResult;
+    require(
+        aggressiveEngine.callEnemyActionFunction(enemy, healthyPlayer, aggressiveResult),
+        aggressiveEngine.getLastError()
+    );
+    require(aggressiveResult.type == "ataque", "goblin_aggressive: tipo permitido pelo contrato");
+    require(approximately(aggressiveResult.value, 12.0), "goblin_aggressive: sem escalada com jogador saudável");
+
+    require(
+        basicResult.message != aggressiveResult.message,
+        "os dois scripts devem descrever estratégias diferentes para o mesmo estado"
+    );
+
+    const Character woundedPlayer{"Herói", 100.0, 20.0, 5.0, 50.0};
+    Character wounded = woundedPlayer;
+    wounded.takeDamage(70.0);
+
+    ActionResult basicWounded;
+    require(
+        basicEngine.callEnemyActionFunction(enemy, wounded, basicWounded),
+        basicEngine.getLastError()
+    );
+    require(approximately(basicWounded.value, 12.0), "goblin_basic ignora a vida do jogador");
+
+    ActionResult aggressiveWounded;
+    require(
+        aggressiveEngine.callEnemyActionFunction(enemy, wounded, aggressiveWounded),
+        aggressiveEngine.getLastError()
+    );
+    require(
+        approximately(aggressiveWounded.value, 18.0),
+        "goblin_aggressive intensifica o ataque com o jogador abaixo de 50% de vida"
+    );
+    require(
+        !approximately(basicWounded.value, aggressiveWounded.value),
+        "mesmo estado de jogador ferido produz decisões diferentes entre os scripts"
+    );
+}
+
+void testEnemyActionMissingFunction() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+    require(
+        engine.loadScript("tests/fixtures/missing_action_function.lua"),
+        engine.getLastError()
+    );
+
+    const Character enemy{"Goblin", 60.0, 12.0, 3.0, 0.0};
+    const Character player{"Herói", 100.0, 20.0, 5.0, 50.0};
+
+    ActionResult untouched;
+    untouched.type = "sentinela";
+    const int stackTop = lua_gettop(engine.getState());
+
+    require(
+        !engine.callEnemyActionFunction(enemy, player, untouched),
+        "script sem escolher_acao deve ser rejeitado"
+    );
+    require(!engine.getLastError().empty(), "função ausente gera erro controlado");
+    require(untouched.type == "sentinela", "falha não altera ActionResult de saída");
+    require(
+        lua_gettop(engine.getState()) == stackTop,
+        "chamada com função ausente deve restaurar a stack"
+    );
+}
+
+void testEnemyActionInvalidReturn() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+    require(
+        engine.loadScript("tests/fixtures/invalid_enemy_action.lua"),
+        engine.getLastError()
+    );
+
+    const Character enemy{"Goblin", 60.0, 12.0, 3.0, 0.0};
+    const Character player{"Herói", 100.0, 20.0, 5.0, 50.0};
+
+    ActionResult untouched;
+    untouched.type = "sentinela";
+    const int stackTop = lua_gettop(engine.getState());
+
+    require(
+        !engine.callEnemyActionFunction(enemy, player, untouched),
+        "retorno sem o campo obrigatório 'valor' deve ser rejeitado"
+    );
+    require(!engine.getLastError().empty(), "retorno inválido gera erro controlado");
+    require(untouched.type == "sentinela", "falha não altera ActionResult de saída");
+    require(
+        lua_gettop(engine.getState()) == stackTop,
+        "chamada com retorno inválido deve restaurar a stack"
+    );
+
+    ActionResult recovered;
+    require(
+        !engine.callEnemyActionFunction(enemy, player, recovered),
+        "engine deve continuar recusando de forma consistente em chamadas seguintes"
+    );
+}
+
 }  // namespace
 
 int main() {
@@ -164,6 +289,9 @@ int main() {
         {"Character inválido", testInvalidCharacterIsRejected},
         {"contrato ActionResult", testActionResultContract},
         {"ActionResult inválido", testInvalidActionResults},
+        {"scripts de inimigo divergem para o mesmo estado", testEnemyActionScriptsDifferForSameState},
+        {"escolher_acao ausente", testEnemyActionMissingFunction},
+        {"escolher_acao com retorno inválido", testEnemyActionInvalidReturn},
     };
 
     int failures = 0;
