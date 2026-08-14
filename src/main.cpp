@@ -1,21 +1,102 @@
 // Ponto de entrada do LuaArena: monta a batalha, roda o loop até vitória ou
 // derrota e usa a LuaEngine para consultar a decisão do inimigo a cada
-// turno. Trocar o script de inimigo (argv[1]) muda o comportamento do
-// inimigo sem exigir recompilação do C++.
+// turno. Trocar o script de inimigo (argv[1]), a arena (--arena) ou a
+// dificuldade (--difficulty) muda o comportamento do jogo sem exigir
+// recompilação do C++.
 #include "ActionMenu.hpp"
 #include "ActionResult.hpp"
 #include "AbilityResult.hpp"
+#include "ArenaConfig.hpp"
+#include "ArenaEvent.hpp"
+#include "ArenaManager.hpp"
 #include "Character.hpp"
+#include "DifficultyConfig.hpp"
 #include "Game.hpp"
 #include "LuaEngine.hpp"
 
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace {
 
 constexpr const char* kAbilitiesScript = "scripts/abilities/abilities.lua";
+constexpr const char* kDefaultArenaScript = "scripts/arenas/neutral.lua";
+constexpr const char* kDefaultDifficultyScript = "scripts/difficulty/normal.lua";
+
+struct CliOptions {
+    std::string enemyScriptPath;
+    std::string arenaScriptPath = kDefaultArenaScript;
+    std::string difficultyScriptPath = kDefaultDifficultyScript;
+};
+
+std::optional<CliOptions> parseArgs(int argc, char** argv) {
+    if (argc < 2) {
+        return std::nullopt;
+    }
+
+    CliOptions options;
+    options.enemyScriptPath = argv[1];
+
+    for (int i = 2; i < argc; ++i) {
+        const std::string flag = argv[i];
+        if (flag == "--arena") {
+            if (i + 1 >= argc) {
+                std::cerr << "erro: --arena exige um caminho de script\n";
+                return std::nullopt;
+            }
+            options.arenaScriptPath = argv[++i];
+        } else if (flag == "--difficulty") {
+            if (i + 1 >= argc) {
+                std::cerr << "erro: --difficulty exige um caminho de script\n";
+                return std::nullopt;
+            }
+            options.difficultyScriptPath = argv[++i];
+        } else {
+            std::cerr << "erro: opção desconhecida '" << flag << "'\n";
+            return std::nullopt;
+        }
+    }
+
+    return options;
+}
+
+void printWarnings(const std::string& label, const std::vector<std::string>& warnings) {
+    for (const std::string& warning : warnings) {
+        std::cerr << "aviso (" << label << "): " << warning << '\n';
+    }
+}
+
+ArenaCharacter toArenaCharacter(const Character& character) {
+    return {
+        character.getName(),
+        character.getHealth(),
+        character.getMaximumHealth(),
+        character.getAttack(),
+        character.getDefense(),
+        character.getEnergy(),
+        character.getMaximumEnergy(),
+    };
+}
+
+// Processa queimadura/veneno do personagem da vez, no início do turno dele
+// (docs/motor-do-jogo.md, "Fluxo de integração recomendado", passo 4).
+void processStatusEffects(Game& game) {
+    Character& current = game.getCurrentCharacter();
+
+    if (current.isBurning()) {
+        const double damage = current.processBurning();
+        std::cout << current.getName() << " sofre " << damage
+                  << " de dano por queimadura.\n";
+    }
+
+    if (!current.isDefeated() && current.isPoisoned()) {
+        const double damage = current.processPoison();
+        std::cout << current.getName() << " sofre " << damage
+                  << " de dano por veneno.\n";
+    }
+}
 
 void printBattleState(const Game& game) {
     const Character& player = game.getPlayer();
@@ -32,28 +113,35 @@ void printBattleState(const Game& game) {
 // Aplica o ActionResult já validado pela LuaEngine no estado C++. A
 // LuaEngine só descreve a ação; quem decide o que acontece com vida,
 // energia e status é sempre o C++.
-void applyEnemyAction(Game& game, const ActionResult& action) {
+void applyEnemyAction(Game& game, const ActionResult& action, const ArenaConfig* arenaConfig) {
     Character& player = game.getPlayer();
     Character& enemy = game.getEnemy();
 
     std::cout << action.message << '\n';
 
+    const double scaledValue = scaleDamageByEffect(arenaConfig, action.effect, action.value);
+
     if (action.type == "ataque") {
-        player.takeDamage(action.value);
+        player.takeDamage(scaledValue);
     } else if (action.type == "cura") {
-        enemy.heal(action.value);
+        enemy.heal(scaleHealing(arenaConfig, action.value));
     }
 
     if (!game.isBattleOver()) {
         if (action.effect == "queimadura") {
-            player.applyBurning(action.duration, action.value);
+            player.applyBurning(action.duration, scaledValue);
         } else if (action.effect == "veneno") {
-            player.applyPoison(action.duration, action.value);
+            player.applyPoison(action.duration, scaledValue);
         }
     }
 }
 
-void runEnemyTurn(Game& game, LuaEngine& enemyEngine) {
+void runEnemyTurn(
+    Game& game,
+    LuaEngine& enemyEngine,
+    const ArenaConfig* arenaConfig,
+    const DifficultyConfig& difficulty
+) {
     ActionResult decision;
 
     if (!enemyEngine.callEnemyActionFunction(
@@ -66,10 +154,21 @@ void runEnemyTurn(Game& game, LuaEngine& enemyEngine) {
         return;
     }
 
-    applyEnemyAction(game, decision);
+    if (decision.type == "cura" && !difficulty.healingEnabled) {
+        std::cout << game.getEnemy().getName()
+                  << " tentou se curar, mas a dificuldade atual não permite. Turno perdido.\n";
+        return;
+    }
+
+    applyEnemyAction(game, decision, arenaConfig);
 }
 
-void runPlayerTurn(Game& game, LuaEngine& abilityEngine, const ActionMenu& menu) {
+void runPlayerTurn(
+    Game& game,
+    LuaEngine& abilityEngine,
+    const ActionMenu& menu,
+    const ArenaConfig* arenaConfig
+) {
     const std::optional<PlayerActionSelection> selection =
         menu.readSelection(std::cin, std::cout);
 
@@ -87,12 +186,53 @@ void runPlayerTurn(Game& game, LuaEngine& abilityEngine, const ActionMenu& menu)
     }
 
     AbilityResult result;
-    if (!game.useAbility(abilityEngine, selection->abilityIdentifier, result)) {
+    if (!game.useAbility(abilityEngine, selection->abilityIdentifier, result, arenaConfig)) {
         std::cout << "Habilidade recusada: " << result.message << '\n';
         return;
     }
 
     std::cout << result.message << '\n';
+}
+
+// Aplica um evento de arena (ambiental, fora do controle do jogador ou do
+// inimigo) nos personagens-alvo, seguindo os mesmos invariantes do motor:
+// dano nunca deixa a vida negativa, cura nunca ultrapassa o máximo, e nada
+// é aplicado depois do fim da batalha.
+void applyArenaEvent(Game& game, const ArenaEvent& event, const ArenaConfig* arenaConfig) {
+    std::cout << event.message << '\n';
+
+    const std::string effect = event.effect == ArenaEffect::Burning ? "queimadura"
+        : event.effect == ArenaEffect::Poison ? "veneno"
+        : "";
+    const double scaledValue = scaleDamageByEffect(arenaConfig, effect, event.value);
+
+    auto applyToTarget = [&](Character& target) {
+        if (target.isDefeated()) {
+            return;
+        }
+
+        if (event.type == ArenaEventType::Damage) {
+            target.takeDamage(scaledValue);
+        } else if (event.type == ArenaEventType::Healing) {
+            target.heal(scaleHealing(arenaConfig, event.value));
+        }
+
+        if (!target.isDefeated() && event.duration > 0) {
+            if (event.effect == ArenaEffect::Burning) {
+                target.applyBurning(event.duration, scaledValue);
+            } else if (event.effect == ArenaEffect::Poison) {
+                target.applyPoison(event.duration, scaledValue);
+            }
+        }
+    };
+
+    if (event.target == ArenaTarget::Player || event.target == ArenaTarget::All) {
+        applyToTarget(game.getPlayer());
+    }
+    if (!game.isBattleOver() &&
+        (event.target == ArenaTarget::Enemy || event.target == ArenaTarget::All)) {
+        applyToTarget(game.getEnemy());
+    }
 }
 
 void printOutcome(const Game& game) {
@@ -107,19 +247,19 @@ void printOutcome(const Game& game) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "uso: " << argv[0] << " <script-de-inimigo.lua>\n";
+    const std::optional<CliOptions> options = parseArgs(argc, argv);
+    if (!options) {
+        std::cerr << "uso: " << argv[0]
+                  << " <script-de-inimigo.lua> [--arena <script.lua>] [--difficulty <script.lua>]\n";
         return 1;
     }
-
-    const std::string enemyScriptPath = argv[1];
 
     LuaEngine enemyEngine;
     if (!enemyEngine.isInitialized()) {
         std::cerr << "falha ao inicializar o estado Lua do inimigo\n";
         return 1;
     }
-    if (!enemyEngine.loadScript(enemyScriptPath)) {
+    if (!enemyEngine.loadScript(options->enemyScriptPath)) {
         std::cerr << "falha ao carregar script de inimigo: "
                   << enemyEngine.getLastError() << '\n';
         return 1;
@@ -136,9 +276,31 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    ArenaManager arenaManager;
+    if (!arenaManager.load(options->arenaScriptPath)) {
+        std::cerr << "falha ao carregar arena: " << arenaManager.lastError() << '\n';
+        return 1;
+    }
+    printWarnings("arena", arenaManager.warnings());
+
+    DifficultyLoader difficultyLoader;
+    if (!difficultyLoader.load(options->difficultyScriptPath)) {
+        std::cerr << "falha ao carregar dificuldade: "
+                  << difficultyLoader.lastError() << '\n';
+        return 1;
+    }
+    printWarnings("dificuldade", difficultyLoader.warnings());
+    const DifficultyConfig& difficulty = difficultyLoader.config();
+
     Game game{
         Character{"Herói", 100.0, 20.0, 5.0, 50.0},
-        Character{"Goblin", 60.0, 12.0, 3.0, 0.0},
+        Character{
+            "Goblin",
+            60.0 * difficulty.healthMultiplier,
+            12.0 * difficulty.attackMultiplier,
+            3.0,
+            0.0
+        },
     };
 
     const ActionMenu menu{{
@@ -147,16 +309,46 @@ int main(int argc, char** argv) {
         {"golpe_venenoso", "Golpe Venenoso"},
     }};
 
+    const ArenaConfig* arenaConfig = arenaManager.config();
+
     std::cout << "=== Lua Arena ===\n";
-    std::cout << "Inimigo controlado por: " << enemyScriptPath << "\n";
+    std::cout << "Inimigo controlado por: " << options->enemyScriptPath << "\n";
+    std::cout << "Arena: " << (arenaConfig != nullptr ? arenaConfig->name : "desconhecida") << "\n";
+    std::cout << "Dificuldade: vida x" << difficulty.healthMultiplier
+              << ", ataque x" << difficulty.attackMultiplier << "\n";
+
+    if (const std::optional<ArenaEvent> startEvent = arenaManager.onBattleStart(
+            toArenaCharacter(game.getPlayer()),
+            toArenaCharacter(game.getEnemy())
+        )) {
+        applyArenaEvent(game, *startEvent, arenaConfig);
+    }
 
     while (!game.isBattleOver()) {
+        if (game.isPlayerTurn()) {
+            if (const std::optional<ArenaEvent> turnEvent = arenaManager.onTurnStart(
+                    game.getTurnNumber(),
+                    toArenaCharacter(game.getPlayer()),
+                    toArenaCharacter(game.getEnemy())
+                )) {
+                applyArenaEvent(game, *turnEvent, arenaConfig);
+                if (game.isBattleOver()) {
+                    break;
+                }
+            }
+        }
+
+        processStatusEffects(game);
+        if (game.isBattleOver()) {
+            break;
+        }
+
         printBattleState(game);
 
         if (game.isPlayerTurn()) {
-            runPlayerTurn(game, abilityEngine, menu);
+            runPlayerTurn(game, abilityEngine, menu, arenaConfig);
         } else {
-            runEnemyTurn(game, enemyEngine);
+            runEnemyTurn(game, enemyEngine, arenaConfig, difficulty);
         }
 
         if (game.isBattleOver()) {
@@ -164,6 +356,12 @@ int main(int argc, char** argv) {
         }
         game.advanceTurn();
     }
+
+    arenaManager.onBattleEnd(
+        game.hasPlayerWon() ? BattleResult::Victory : BattleResult::Defeat,
+        toArenaCharacter(game.getPlayer()),
+        toArenaCharacter(game.getEnemy())
+    );
 
     printOutcome(game);
     return 0;

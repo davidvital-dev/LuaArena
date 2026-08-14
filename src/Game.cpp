@@ -77,7 +77,8 @@ bool Game::hasPlayerLost() const noexcept {
 bool Game::useAbility(
     LuaEngine& engine,
     const std::string& abilityIdentifier,
-    AbilityResult& result
+    AbilityResult& result,
+    const ArenaConfig* arenaConfig
 ) {
     result = AbilityResult{};
 
@@ -121,14 +122,15 @@ bool Game::useAbility(
         return false;
     }
 
-    enemy_.takeDamage(candidate.damage);
+    const double scaledDamage = scaleDamageByEffect(arenaConfig, candidate.effect, candidate.damage);
+    enemy_.takeDamage(scaledDamage);
     if (!isBattleOver()) {
-        player_.heal(candidate.healing);
+        player_.heal(scaleHealing(arenaConfig, candidate.healing));
 
         if (candidate.effect == "queimadura") {
-            enemy_.applyBurning(candidate.duration, candidate.damage);
+            enemy_.applyBurning(candidate.duration, scaledDamage);
         } else if (candidate.effect == "veneno") {
-            enemy_.applyPoison(candidate.duration, candidate.damage);
+            enemy_.applyPoison(candidate.duration, scaledDamage);
         }
     }
 
