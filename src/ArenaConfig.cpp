@@ -29,3 +29,24 @@ double ArenaConfig::modifier(ArenaModifier key) const noexcept {
     const auto found = modifiers.find(key);
     return found == modifiers.end() ? 1.0 : found->second;
 }
+
+double scaleDamageByEffect(
+    const ArenaConfig* config,
+    const std::string& effect,
+    double value
+) noexcept {
+    if (config == nullptr) {
+        return value;
+    }
+    if (effect == "queimadura") {
+        return value * config->modifier(ArenaModifier::FireDamage);
+    }
+    if (effect == "veneno") {
+        return value * config->modifier(ArenaModifier::PoisonDamage);
+    }
+    return value;
+}
+
+double scaleHealing(const ArenaConfig* config, double value) noexcept {
+    return config == nullptr ? value : value * config->modifier(ArenaModifier::Healing);
+}

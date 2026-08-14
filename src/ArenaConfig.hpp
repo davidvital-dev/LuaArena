@@ -23,3 +23,14 @@ struct ArenaConfig {
 
     double modifier(ArenaModifier key) const noexcept;
 };
+
+// Escala dano de dano/cura pelos modificadores da arena (docs/contracts.md,
+// seção 7), usada tanto para ações do jogador quanto do inimigo, para que a
+// arena afete os dois lados da batalha de forma simétrica. `config` nulo
+// (nenhuma arena carregada) devolve o valor sem alteração.
+double scaleDamageByEffect(
+    const ArenaConfig* config,
+    const std::string& effect,
+    double value
+) noexcept;
+double scaleHealing(const ArenaConfig* config, double value) noexcept;

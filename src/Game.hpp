@@ -3,6 +3,7 @@
 #include <string>
 
 #include "AbilityResult.hpp"
+#include "ArenaConfig.hpp"
 #include "Character.hpp"
 
 class LuaEngine;
@@ -45,10 +46,13 @@ public:
     // Executa a habilidade escolhida pelo jogador por meio do LuaEngine. O
     // retorno booleano informa se C++ aplicou a ação; o resultado preserva a
     // descrição Lua e expõe `applied` para quem apresentar a mensagem.
+    // `arenaConfig` (opcional) escala dano/cura pelos modificadores da arena
+    // atual, para que a arena afete jogador e inimigo de forma simétrica.
     bool useAbility(
         LuaEngine& engine,
         const std::string& abilityIdentifier,
-        AbilityResult& result
+        AbilityResult& result,
+        const ArenaConfig* arenaConfig = nullptr
     );
 
     // Alterna jogador/inimigo; uma nova rodada comeca depois do inimigo.
