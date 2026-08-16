@@ -34,13 +34,11 @@ bool isFiniteNonNegative(double value) {
 }
 
 bool isAllowedActionType(const std::string& type) {
-    return type == "ataque" || type == "cura" || type == "defesa" ||
-           type == "habilidade" || type == "nenhum";
+    return type == "ataque" || type == "cura" || type == "nenhum";
 }
 
 bool isAllowedEffect(const std::string& effect) {
-    return effect == "queimadura" || effect == "veneno" ||
-           effect == "defesa" || effect == "nenhum";
+    return effect == "queimadura" || effect == "veneno" || effect == "nenhum";
 }
 
 void rawGetField(lua_State* state, int tableIndex, const char* field) {
@@ -708,6 +706,27 @@ bool LuaEngine::callEnemyActionFunction(
 
     ActionResult candidate;
     if (!readActionResult(-1, candidate)) {
+        return false;
+    }
+
+    const bool hasDamageOverTimeEffect =
+        candidate.effect == "queimadura" || candidate.effect == "veneno";
+    if (hasDamageOverTimeEffect && candidate.duration == 0) {
+        lastError_ = "efeito de ação inimiga exige duração positiva";
+        return false;
+    }
+    if (!hasDamageOverTimeEffect && candidate.duration != 0) {
+        lastError_ = "duração de ação inimiga exige efeito aplicável";
+        return false;
+    }
+    if (candidate.type == "nenhum" &&
+        (candidate.value != 0.0 || hasDamageOverTimeEffect ||
+         candidate.energyCost != 0.0)) {
+        lastError_ = "ação inimiga 'nenhum' não pode possuir valor, efeito ou custo";
+        return false;
+    }
+    if (!enemy.hasEnoughEnergy(candidate.energyCost)) {
+        lastError_ = "custo da ação inimiga supera a energia disponível";
         return false;
     }
 

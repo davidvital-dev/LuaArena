@@ -10,7 +10,7 @@ end
 
 function acao_com_opcionais()
     return {
-        tipo = "habilidade",
+        tipo = "ataque",
         valor = 30,
         mensagem = "Bola de Fogo.",
         efeito = "queimadura",
@@ -48,7 +48,7 @@ end
 
 function acao_duracao_invalida()
     return {
-        tipo = "habilidade",
+        tipo = "ataque",
         valor = 10,
         mensagem = "Duração inválida.",
         duracao = "tres"

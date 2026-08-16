@@ -117,6 +117,11 @@ void applyEnemyAction(Game& game, const ActionResult& action, const ArenaConfig*
     Character& player = game.getPlayer();
     Character& enemy = game.getEnemy();
 
+    if (!enemy.spendEnergy(action.energyCost)) {
+        std::cout << "Ação inimiga recusada: energia insuficiente.\n";
+        return;
+    }
+
     std::cout << action.message << '\n';
 
     const double scaledValue = scaleDamageByEffect(arenaConfig, action.effect, action.value);
@@ -163,7 +168,7 @@ void runEnemyTurn(
     applyEnemyAction(game, decision, arenaConfig);
 }
 
-void runPlayerTurn(
+bool runPlayerTurn(
     Game& game,
     LuaEngine& abilityEngine,
     const ActionMenu& menu,
@@ -174,7 +179,7 @@ void runPlayerTurn(
 
     if (!selection) {
         std::cout << "Entrada encerrada.\n";
-        return;
+        return false;
     }
 
     if (selection->type == PlayerActionType::BasicAttack) {
@@ -182,16 +187,17 @@ void runPlayerTurn(
         Character& enemy = game.getEnemy();
         std::cout << player.getName() << " ataca com um golpe básico.\n";
         enemy.takeDamage(player.getAttack());
-        return;
+        return true;
     }
 
     AbilityResult result;
     if (!game.useAbility(abilityEngine, selection->abilityIdentifier, result, arenaConfig)) {
         std::cout << "Habilidade recusada: " << result.message << '\n';
-        return;
+        return true;
     }
 
     std::cout << result.message << '\n';
+    return true;
 }
 
 // Aplica um evento de arena (ambiental, fora do controle do jogador ou do
@@ -346,7 +352,9 @@ int main(int argc, char** argv) {
         printBattleState(game);
 
         if (game.isPlayerTurn()) {
-            runPlayerTurn(game, abilityEngine, menu, arenaConfig);
+            if (!runPlayerTurn(game, abilityEngine, menu, arenaConfig)) {
+                return 0;
+            }
         } else {
             runEnemyTurn(game, enemyEngine, arenaConfig, difficulty);
         }

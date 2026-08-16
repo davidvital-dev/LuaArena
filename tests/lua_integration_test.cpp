@@ -281,6 +281,76 @@ void testEnemyActionInvalidReturn() {
     );
 }
 
+void testEnemyActionContextValidation() {
+    LuaEngine engine;
+    require(engine.isInitialized(), "estado Lua inicializado");
+    require(
+        engine.loadScript("tests/fixtures/enemy_action_validation.lua"),
+        engine.getLastError()
+    );
+
+    const Character enemy{"Goblin", 60.0, 12.0, 3.0, 0.0};
+    const Character player{"Herói", 100.0, 20.0, 5.0, 50.0};
+    lua_State* state = engine.getState();
+
+    const auto setStringGlobal = [state](const char* name, const char* value) {
+        lua_pushstring(state, value);
+        lua_setglobal(state, name);
+    };
+    const auto setNumberGlobal = [state](const char* name, double value) {
+        lua_pushnumber(state, value);
+        lua_setglobal(state, name);
+    };
+    const auto setIntegerGlobal = [state](const char* name, lua_Integer value) {
+        lua_pushinteger(state, value);
+        lua_setglobal(state, name);
+    };
+    const auto expectRejected = [&](const std::string& expectedError) {
+        ActionResult untouched;
+        untouched.type = "sentinela";
+        const int stackTop = lua_gettop(state);
+        require(
+            !engine.callEnemyActionFunction(enemy, player, untouched),
+            "ação inimiga incompatível com o motor deve ser rejeitada"
+        );
+        require(
+            engine.getLastError().find(expectedError) != std::string::npos,
+            "erro contextual esperado: " + expectedError + "; recebido: "
+                + engine.getLastError()
+        );
+        require(untouched.type == "sentinela", "falha contextual preserva ActionResult");
+        require(lua_gettop(state) == stackTop, "falha contextual restaura a stack");
+    };
+
+    setStringGlobal("tipo_acao", "defesa");
+    expectRejected("não permitida");
+
+    setStringGlobal("tipo_acao", "habilidade");
+    expectRejected("não permitida");
+
+    setStringGlobal("tipo_acao", "ataque");
+    setStringGlobal("efeito_acao", "defesa");
+    setIntegerGlobal("duracao_acao", 1);
+    expectRejected("efeito não permitido");
+
+    lua_pushnil(state);
+    lua_setglobal(state, "efeito_acao");
+    setIntegerGlobal("duracao_acao", 0);
+    setNumberGlobal("custo_acao", 1.0);
+    expectRejected("energia disponível");
+
+    setStringGlobal("tipo_acao", "nenhum");
+    setNumberGlobal("valor_acao", 0.0);
+    setNumberGlobal("custo_acao", 0.0);
+    ActionResult noAction;
+    require(
+        engine.callEnemyActionFunction(enemy, player, noAction),
+        "ação nenhum válida deve ser aceita: " + engine.getLastError()
+    );
+    require(noAction.type == "nenhum", "ação nenhum preservada");
+    require(lua_gettop(state) == 0, "stack limpa após ação nenhum");
+}
+
 }  // namespace
 
 int main() {
@@ -292,6 +362,7 @@ int main() {
         {"scripts de inimigo divergem para o mesmo estado", testEnemyActionScriptsDifferForSameState},
         {"escolher_acao ausente", testEnemyActionMissingFunction},
         {"escolher_acao com retorno inválido", testEnemyActionInvalidReturn},
+        {"validação contextual da ação inimiga", testEnemyActionContextValidation},
     };
 
     int failures = 0;

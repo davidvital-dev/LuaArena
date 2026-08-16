@@ -77,7 +77,7 @@ personagem = {
 
 ## 3. Resultado de uma ação
 
-As decisões de inimigos e os eventos de arena serão convertidos pelo C++ para uma estrutura equivalente a:
+As decisões de inimigos serão convertidas pelo C++ para uma estrutura equivalente a:
 
 ```cpp
 struct ActionResult {
@@ -127,8 +127,6 @@ custo = 0
 ```text
 ataque
 cura
-defesa
-habilidade
 nenhum
 ```
 
@@ -137,7 +135,6 @@ nenhum
 ```text
 queimadura
 veneno
-defesa
 nenhum
 ```
 

@@ -42,7 +42,7 @@ end
 
 function acao_efeito_invalido()
     return {
-        tipo = "habilidade",
+        tipo = "ataque",
         valor = 5,
         mensagem = "Efeito inválido.",
         efeito = "congelamento"
@@ -51,7 +51,7 @@ end
 
 function acao_duracao_negativa()
     return {
-        tipo = "habilidade",
+        tipo = "ataque",
         valor = 5,
         mensagem = "Duração inválida.",
         efeito = "veneno",
@@ -61,7 +61,7 @@ end
 
 function acao_custo_negativo()
     return {
-        tipo = "habilidade",
+        tipo = "ataque",
         valor = 5,
         mensagem = "Custo inválido.",
         custo = -10
