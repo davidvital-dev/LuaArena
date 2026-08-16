@@ -31,17 +31,16 @@ Lua 5.4. Só prossiga com o restante do roteiro depois que ele imprimir
 
 ## 3. Testes automatizados
 
-Os testes automatizados ficam em `tests/arena_system_test.cpp`, que cobre
-arenas, dificuldade e `LuaEngine`, e em `tests/game_engine_test.cpp`, que cobre
-as regras do motor do jogo. Para compilar e rodar as duas suítes:
+Os testes automatizados ficam nas suítes de arenas, motor e integração Lua,
+além do teste shell do fluxo principal. Para compilar o jogo e executar tudo:
 
 ```bash
 make test
 ```
 
-Isso gera e executa `build/arena-system-test` e `build/game-engine-test`.
-Cada caso imprime seu resultado; qualquer falha faz o executável responsável
-terminar com código de saída `1`.
+Isso gera e executa `build/arena-system-test`, `build/game-engine-test`,
+`build/lua-integration-test` e `tests/main_flow_test.sh`. Cada caso imprime seu
+resultado; qualquer falha encerra `make test` com código diferente de zero.
 
 ### O que `arena_system_test.cpp` cobre hoje
 
@@ -71,9 +70,12 @@ terminar com código de saída `1`.
 | Vitória e derrota | Resultado da batalha e bloqueio do avanço de turno após o encerramento |
 | Menu de ações | Ataque básico, habilidades, entradas inválidas, EOF e configuração duplicada/vazia |
 
-Cada um dos quatro últimos casos é a base para os testes manuais
-equivalentes da seção 6 — eles já garantem, hoje, que o comportamento
-descrito ali está implementado e testado no nível de `LuaEngine`.
+### O que os testes de integração e fluxo cobrem
+
+| Suíte | O que valida |
+|---|---|
+| `lua_integration_test.cpp` | Conversão de personagens, contrato `ActionResult`, erros de `escolher_acao`, validação contextual e diferença real entre os dois scripts de inimigo |
+| `main_flow_test.sh` | EOF encerra o executável sem avançar turno nem declarar vencedor |
 
 ## 4. Testes manuais de compilação
 
@@ -84,22 +86,7 @@ make clean && make build
 **Resultado esperado:** `build/lua-arena` gerado sem warnings (o projeto
 compila com `-Wall -Wextra`).
 
-> **Status atual:** este alvo depende de `src/main.cpp`, que ainda não
-> existe no repositório (a integração final do loop jogável está em
-> andamento — ver seção "Status" do [`README.md`](../README.md)). Até
-> `main.cpp` ser adicionado, `make build` falha apenas na etapa de
-> *link*, com `undefined reference to 'main'`; todos os `.o` individuais
-> compilam normalmente. Use `make test` (seção 3) para validar a lógica
-> do motor enquanto isso.
-
 ## 5. Testes manuais de execução — caminho feliz
-
-> **Bloqueado:** os três itens abaixo dependem de `src/main.cpp` (com
-> leitura de argumentos de linha de comando) e dos scripts de inimigo
-> `scripts/enemies/goblin_basic.lua` e `scripts/enemies/goblin_smart.lua`,
-> nenhum dos quais existe hoje no repositório (`scripts/enemies/` só tem
-> `.gitkeep`). Documentado aqui como o roteiro a seguir assim que essas
-> peças forem integradas.
 
 1. **Goblin básico até o fim da batalha**
 
@@ -110,22 +97,21 @@ compila com `-Wall -Wextra`).
    Confirmar que a batalha roda até o fim (vitória ou derrota do
    jogador), sem travar e sem encerrar com erro.
 
-2. **Goblin inteligente — mudança de comportamento**
+2. **Goblin agressivo — mudança de comportamento**
 
    ```bash
-   ./build/lua-arena scripts/enemies/goblin_smart.lua
+   ./build/lua-arena scripts/enemies/goblin_aggressive.lua
    ```
 
-   Confirmar que as decisões do inimigo (ex: curar quando a vida está
-   baixa) são visivelmente diferentes do goblin básico, sem que nenhuma
-   linha de C++ tenha sido alterada.
+   Confirmar que o inimigo passa a usar o golpe de acabamento quando o
+   jogador fica com menos da metade da vida, sem alterar nem recompilar C++.
 
 3. **Troca de arena sem recompilar**
 
    ```bash
-   md5sum build/lua-arena > /tmp/hash_antes.txt
+   sha256sum build/lua-arena > /tmp/hash_antes.txt
    ./build/lua-arena scripts/enemies/goblin_basic.lua --arena scripts/arenas/volcanic.lua
-   md5sum build/lua-arena > /tmp/hash_depois.txt
+   sha256sum build/lua-arena > /tmp/hash_depois.txt
    diff /tmp/hash_antes.txt /tmp/hash_depois.txt
    ```
 
@@ -134,17 +120,13 @@ compila com `-Wall -Wextra`).
    amplificado, onda de calor periódica — ver
    [`docs/arenas-e-eventos.md`](arenas-e-eventos.md)) aparece na partida.
 
-   > A flag `--arena` ainda não tem contrato definido em nenhum
-   > documento do projeto; ela é proposta aqui como a interface mais
-   > simples compatível com o alvo `run` do `Makefile`. Quem integrar
-   > `main.cpp` deve confirmar ou ajustar esse formato.
+   A flag também pode ser combinada com
+   `--difficulty scripts/difficulty/normal.lua`.
 
 ## 6. Testes manuais de tratamento de erro
 
-Cada cenário abaixo já tem um teste automatizado equivalente no nível de
-`LuaEngine` (seção 3), rodável hoje via `make test`. Os comandos de CLI
-abaixo mostram como reproduzir o mesmo cenário fim-a-fim, e dependem do
-`main.cpp` descrito na seção 5.
+Cada cenário abaixo tem um teste automatizado equivalente, rodável via
+`make test`. Os comandos de CLI mostram como reproduzir os casos fim a fim.
 
 ### 6.1 Arquivo `.lua` inexistente
 
@@ -187,34 +169,27 @@ Use um script válido que não define `escolher_acao` (veja
 `tests/fixtures/missing_action_function.lua`):
 
 ```bash
-./build/lua-arena tests/fixtures/missing_action_function.lua
+printf '1\n' | ./build/lua-arena tests/fixtures/missing_action_function.lua
 ```
 
 **Resultado esperado:** mensagem indicando que a função Lua não foi
-encontrada (`"função Lua não encontrada: 'escolher_acao'"`), sem crash,
-código de saída diferente de zero.
+encontrada (`"função Lua não encontrada: 'escolher_acao'"`), ação inimiga
+recusada e execução encerrada sem crash quando a entrada terminar.
 
 **Equivalente automatizado:** `testLuaEngineMissingFunction`.
 
-### 6.4 Função retorna valor inválido
-
-Três variações, todas cobertas por `tests/fixtures/action_result_functions.lua`:
-
-| Retorno da função Lua | Resultado esperado |
-|---|---|
-| Uma `string` em vez de uma tabela | `"retorno de '<nome>' deve ser table, recebido: string"` |
-| Tabela sem o campo `tipo` | `"campo 'tipo' ausente ou não é string no retorno de '<nome>'"` |
-| Campo com tipo errado (ex: `valor = "dez"`) | `"campo 'valor' ausente ou não é number no retorno de '<nome>'"` |
+### 6.4 Função retorna ação inválida
 
 ```bash
-./build/lua-arena tests/fixtures/action_result_functions.lua
+printf '1\n' | ./build/lua-arena tests/fixtures/invalid_enemy_action.lua
 ```
 
-**Resultado esperado, para os três casos:** mensagem específica citando
-o campo problemático, sem crash, código de saída diferente de zero, e o
-motor não aplica nenhum efeito com dados inválidos.
+**Resultado esperado:** mensagem citando o campo obrigatório `valor`, turno
+inimigo perdido, nenhum efeito aplicado e encerramento sem crash.
 
-**Equivalente automatizado:** `testLuaEngineActionResultValidation`.
+**Equivalente automatizado:** `testLuaEngineActionResultValidation` e os casos
+de retorno inválido de `lua_integration_test.cpp`, que também cobrem retorno
+não-table, campo ausente e tipo incorreto.
 
 ## 7. Critério de sucesso da demonstração
 
@@ -246,13 +221,12 @@ Use esta lista durante a apresentação/demonstração ao vivo.
 - [ ] `make test` roda e todos os casos imprimem `[ok]`.
 - [ ] `make clean && make build` gera `build/lua-arena` sem warnings.
 - [ ] Goblin básico joga uma batalha completa até vitória/derrota.
-- [ ] Goblin inteligente demonstra comportamento diferente do básico.
+- [ ] Goblin agressivo demonstra comportamento diferente do básico.
 - [ ] Troca de arena (`--arena scripts/arenas/volcanic.lua`) não altera o
       hash do binário e muda o comportamento da partida.
 - [ ] Script `.lua` inexistente: erro claro, sem crash.
 - [ ] Script com erro de sintaxe: erro claro, sem crash.
 - [ ] Script sem `escolher_acao`: erro claro, sem crash.
-- [ ] Função Lua retorna valor não-table: erro claro, sem crash.
-- [ ] Função Lua retorna table sem campo `tipo`: erro claro, sem crash.
-- [ ] Função Lua retorna campo com tipo errado (ex: `valor` como
-      string): erro claro, sem crash.
+- [ ] Ação inimiga sem campo obrigatório: erro claro, sem crash.
+- [ ] Casos automatizados de retorno não-table, campo ausente e tipo incorreto
+      passam em `make test`.

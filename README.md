@@ -2,6 +2,12 @@
 
 Jogo de batalha em terminal, escrito em C++, cujo comportamento pode ser estendido por scripts Lua sem recompilar o programa.
 
+## Contexto acadêmico
+
+- **Instituição:** Universidade Federal do Cariri (UFCA);
+- **Disciplina:** Paradigmas da Programação;
+- **Professor:** Rafael Will Macedo de Araujo.
+
 ## Regra arquitetural
 
 ```text
@@ -30,18 +36,21 @@ ao_iniciar_turno(turno, jogador, inimigo)
 ao_finalizar_batalha(resultado, jogador, inimigo)
 ```
 
-Retorno comum de uma ação:
+Retorno da escolha de ação de um inimigo:
 
 ```lua
 {
-    alvo = "inimigo",
-    tipo = "dano",
+    tipo = "ataque",
     valor = 10,
     mensagem = "Descrição da ação.",
     efeito = nil,
-    duracao = 0
+    duracao = 0,
+    custo = 0
 }
 ```
+
+Os formatos completos de ações, habilidades, arenas, dificuldade e eventos
+estão em [`docs/contracts.md`](docs/contracts.md).
 
 ## Arenas obrigatórias
 
@@ -62,7 +71,7 @@ LuaArena/
 │   └── enemies/      # comportamento dos inimigos em Lua
 ├── docs/             # documentação de arquitetura e uso
 ├── diagrams/         # diagramas do projeto
-├── presentation/      # material de apresentação
+├── presentation/     # material de apresentação
 └── tests/            # testes
 ```
 
@@ -72,18 +81,49 @@ LuaArena/
 - `pkg-config`;
 - biblioteca de desenvolvimento da Lua 5.4 (ex: `sudo apt install liblua5.4-dev`).
 
+Em Debian, Ubuntu ou WSL/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install build-essential make pkg-config liblua5.4-dev
+```
+
+No Windows, execute os comandos do projeto dentro do WSL ou de outro terminal
+POSIX com a cadeia de compilação completa. O `Makefile` usa comandos como
+`rm`, `mkdir`, `test` e `pkg-config`, portanto não deve ser executado pelo
+`cmd.exe`.
+
 ## Build e execução
 
 ```bash
 make check-deps  # valida se as dependências estão instaladas
+make clean       # remove os artefatos de build
 make build       # compila o motor e gera build/lua-arena
 make run         # compila (se necessário) e executa o jogo
-make test        # compila e executa testes de arenas, dificuldade e integração
-make clean       # remove os artefatos de build
+make test        # compila e executa todas as suítes automatizadas
 make rebuild     # clean + build
 ```
 
 O binário final fica em `build/lua-arena`.
+
+Para executar escolhendo inimigo, arena e dificuldade:
+
+```bash
+./build/lua-arena scripts/enemies/goblin_basic.lua \
+  --arena scripts/arenas/volcanic.lua \
+  --difficulty scripts/difficulty/normal.lua
+```
+
+Arena e dificuldade são opcionais. Sem essas flags, o jogo usa
+`scripts/arenas/neutral.lua` e `scripts/difficulty/normal.lua`.
+
+Para comprovar a troca de comportamento sem recompilar, execute o mesmo
+binário com os dois scripts:
+
+```bash
+./build/lua-arena scripts/enemies/goblin_basic.lua
+./build/lua-arena scripts/enemies/goblin_aggressive.lua
+```
 
 ## Arenas e dificuldade
 
@@ -95,22 +135,46 @@ então disponibiliza eventos para aplicação no estado da batalha.
 Consulte [`docs/arenas-e-eventos.md`](docs/arenas-e-eventos.md) para o contrato,
 o ciclo de vida, exemplos de integração e o comportamento de cada arena.
 
+## Testes
+
+```bash
+make check-deps
+make clean
+make build
+make test
+```
+
+O alvo `make test` executa as suítes de arenas e dificuldade, motor do jogo,
+integração C++ ↔ Lua e o teste do fluxo de EOF do executável. O roteiro completo,
+incluindo os cenários manuais, está em [`docs/testes.md`](docs/testes.md).
+
 ## Motor do jogo
 
 O núcleo C++ mantém personagens, vida, energia, turnos, vitória, derrota e
 efeitos temporários. Consulte [`docs/motor-do-jogo.md`](docs/motor-do-jogo.md)
 para a API, os invariantes e o fluxo recomendado de integração com Lua.
 
+## Documentação
+
+- [`docs/contracts.md`](docs/contracts.md): contratos C++ ↔ Lua;
+- [`docs/build-bindings-e-execucao.md`](docs/build-bindings-e-execucao.md): build, bindings e execução;
+- [`docs/arenas-e-eventos.md`](docs/arenas-e-eventos.md): arenas e eventos;
+- [`docs/motor-do-jogo.md`](docs/motor-do-jogo.md): regras do motor;
+- [`docs/testes.md`](docs/testes.md): roteiro de testes;
+- [`docs/contextualizacao.md`](docs/contextualizacao.md): contexto e características da Lua;
+- [`docs/comparacao-lua-python.md`](docs/comparacao-lua-python.md): comparação Lua × Python;
+- [`docs/referencias.md`](docs/referencias.md): referências bibliográficas.
+
 ## Equipe
 
 | Nome | GitHub | Responsabilidade |
 |---|---|---|
-| David | [`davidvital-dev`](https://github.com/davidvital-dev) | Integração central C++/Lua (`LuaEngine`, contratos) |
-| Carlos | [`carlossan25c`](https://github.com/carlossan25c) | Motor do jogo (`Character`, `Game`, dano, cura, turnos) |
-| Levi | [`lfariazzz`](https://github.com/lfariazzz) | Inimigos, comportamento e dificuldade |
-| Jetro | [`jetrokepler`](https://github.com/jetrokepler) | Habilidades e fundamentação teórica |
-| Henrique | [`HenriqueCoimbra12`](https://github.com/HenriqueCoimbra12) | Build, bindings, erros e testes |
-| Ângelo | [`Angelo-Gabriel-Dev`](https://github.com/Angelo-Gabriel-Dev) | Arenas, eventos e validação de extensões |
+| David Josué Vital Santos | [`davidvital-dev`](https://github.com/davidvital-dev) | Integração central C++/Lua (`LuaEngine`, contratos) |
+| Carlos Santos | [`carlossan25c`](https://github.com/carlossan25c) | Motor do jogo (`Character`, `Game`, dano, cura, turnos) |
+| Levi Farias | [`lfariazzz`](https://github.com/lfariazzz) | Inimigos, comportamento e dificuldade |
+| Jetro Kepler Gomes | [`jetrokepler`](https://github.com/jetrokepler) | Habilidades e fundamentação teórica |
+| Henrique Coimbra | [`HenriqueCoimbra12`](https://github.com/HenriqueCoimbra12) | Build, bindings, erros e testes |
+| Ângelo Gabriel | [`Angelo-Gabriel-Dev`](https://github.com/Angelo-Gabriel-Dev) | Arenas, eventos e validação de extensões |
 
 ## Restrições
 
@@ -118,9 +182,10 @@ Este projeto não implementa interface gráfica, multiplayer, mapa, banco de dad
 
 ## Status
 
-Projeto em desenvolvimento: estrutura, habilidades, bindings, carregamento de
-dificuldade e sistema de arenas/eventos possuem implementação e testes. A
-integração do loop jogável completo continua em andamento.
+Protótipo jogável integrado: inimigos, habilidades, dificuldade e arenas são
+carregados por scripts Lua, enquanto o motor C++ valida e aplica as ações. O
+projeto possui build automatizado, testes de integração e fluxo de batalha até
+vitória ou derrota.
 
 ## Licença
 

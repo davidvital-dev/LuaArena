@@ -108,7 +108,7 @@ Em Lua, o formato padrão será:
 | Campo | Obrigatório | Tipo Lua | Descrição |
 |---|---:|---|---|
 | `tipo` | sim | `string` | Natureza da ação |
-| `valor` | sim | `number` | Valor principal de dano, cura ou defesa |
+| `valor` | sim | `number` | Valor principal de dano ou cura |
 | `mensagem` | sim | `string` | Texto exibido pelo motor |
 | `efeito` | não | `string` ou `nil` | Efeito de status aplicado |
 | `duracao` | não | `number` inteiro | Quantidade de turnos do efeito |
@@ -440,7 +440,7 @@ O parâmetro `resultado` será uma string com um dos valores:
 
 ```text
 vitoria
- derrota
+derrota
 ```
 
 ### Retorno dos eventos

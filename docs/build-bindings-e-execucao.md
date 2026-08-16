@@ -15,6 +15,17 @@ bindings, testes e execução").
 - biblioteca de desenvolvimento da Lua 5.4 (`sudo apt install liblua5.4-dev`
   em distribuições baseadas em Debian/Ubuntu).
 
+Instalação em Debian, Ubuntu ou WSL/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install build-essential make pkg-config liblua5.4-dev
+```
+
+No Windows, o `Makefile` deve ser executado dentro do WSL ou de outro
+ambiente POSIX com todas essas dependências. Executá-lo pelo `cmd.exe` não é
+suportado, pois os alvos usam comandos POSIX como `rm`, `mkdir` e `test`.
+
 ### Alvos do Makefile
 
 | Alvo | O que faz | Exemplo de uso |
@@ -22,7 +33,7 @@ bindings, testes e execução").
 | `check-deps` | Confirma que `g++`, `pkg-config` e a Lua 5.4 estão instalados via `pkg-config` (tenta `lua5.4`, depois `lua-5.4`, depois `lua`) | `make check-deps` |
 | `build` | Compila todos os `.cpp` de `src/` e gera o binário em `build/lua-arena` | `make build` |
 | `run` | Compila (se necessário) e executa o jogo | `make run` |
-| `test` | Compila e executa a suíte de testes automatizados (`tests/arena_system_test.cpp`) | `make test` |
+| `test` | Compila o jogo e executa as suítes de arenas, motor, integração Lua e fluxo de EOF | `make test` |
 | `clean` | Remove o diretório `build/` inteiro | `make clean` |
 | `rebuild` | Equivale a `make clean && make build` | `make rebuild` |
 
@@ -262,36 +273,33 @@ em seguida, sem precisar ser recriado.
 
 ## 4. Execução
 
-Comando básico esperado, seguindo o alvo `run` do `Makefile`:
+Comando básico, equivalente ao executado pelo alvo `run` do `Makefile`:
 
 ```bash
 ./build/lua-arena scripts/enemies/goblin_basic.lua
 ```
 
-> **Status atual:** a execução completa do jogo (binário `main.cpp`,
-> scripts `goblin_basic.lua`/`goblin_smart.lua` e a leitura de
-> argumentos de linha de comando para trocar inimigo, dificuldade e
-> arena) ainda está em integração — ver a seção "Status" do
-> [`README.md`](../README.md) e o detalhamento em
-> [`docs/testes.md`](testes.md#5-testes-manuais-de-execução--caminho-feliz).
-> Até lá, o comportamento de cada peça (bindings, carregamento de
-> script, arenas, dificuldade, habilidades) já é validado
-> individualmente pela suíte de testes da seção 5.
+O primeiro argumento seleciona o script de inimigo. Arena e dificuldade são
+opcionais e podem ser escolhidas por flags:
 
-Quando a integração estiver pronta, a expectativa é trocar de inimigo
-apontando para outro arquivo em `scripts/enemies/`, e de arena/dificuldade
-por meio de flags de linha de comando (proposta em
-`docs/testes.md`, seção 5.3, como `--arena <caminho>`), sem recompilar o
-binário.
+```bash
+./build/lua-arena scripts/enemies/goblin_aggressive.lua \
+  --arena scripts/arenas/poison_forest.lua \
+  --difficulty scripts/difficulty/normal.lua
+```
+
+Sem as flags, o jogo usa a Arena Neutra e a dificuldade normal. Trocar qualquer
+um desses scripts altera o comportamento em tempo de execução, sem recompilar o
+binário C++.
 
 ## 5. Testes
 
 O roteiro completo de testes — automatizados e manuais, incluindo cada
 cenário de erro reproduzido via linha de comando — está em
-[`docs/testes.md`](testes.md). Em resumo: `make test` roda a suíte
-automatizada que cobre dificuldade, arenas, eventos e os quatro cenários
-de erro do `LuaEngine` descritos na seção 3 deste documento; os testes
-manuais complementam com o caminho feliz de execução e um checklist para
+[`docs/testes.md`](testes.md). Em resumo: `make test` roda as suítes de
+dificuldade e arenas, motor do jogo, integração C++ ↔ Lua e fluxo de EOF do
+executável. Elas incluem os quatro cenários de erro do `LuaEngine` descritos na
+seção 3; os testes manuais complementam com batalhas completas e o checklist da
 demonstração ao vivo.
 
 ## 6. Referências cruzadas
