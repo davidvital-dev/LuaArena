@@ -262,7 +262,7 @@ void testLuaEngineMissingScript() {
     LuaEngine engine;
     require(engine.isInitialized(), "estado Lua inicializado");
 
-    const bool loaded = engine.loadScript("scripts/enemies/goblin_basic.lua");
+    const bool loaded = engine.loadScript("tests/fixtures/script_inexistente.lua");
     require(!loaded, "script inexistente não deve ser considerado carregado");
     require(!engine.getLastError().empty(), "falha de script inexistente gera mensagem");
     require(
