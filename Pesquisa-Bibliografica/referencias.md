@@ -103,3 +103,6 @@ Uso no projeto: ocultação de decisões de projeto, redução de dependências 
 | `comparacao-lua-python.md` — runtime, inicialização e distribuição | [LUA-README], [LUA-SOURCE], [PY-CONFIG], [PY-WINDOWS] |
 | `comparacao-lua-python.md` — segurança | [LUA-MANUAL], [PY-CONFIG], [PY-AUDIT] |
 | `comparacao-lua-python.md` — conclusão do Lua Arena | síntese das fontes anteriores e requisitos de `docs/contracts.md` |
+| `Conceitos.md` — características, metatables, retornos múltiplos e coletor de lixo | [LUA-MANUAL], [LUA-SPE] |
+| `Conceitos.md` — aplicações reais | [LUA-SPE], [LUA-EVOLUTION] |
+| `Interoperabilidade-Cpp-Lua.md` — stack, chamadas C++→Lua e Lua→C++ | [LUA-MANUAL] |
