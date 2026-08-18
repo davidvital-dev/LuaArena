@@ -24,6 +24,7 @@ namespace {
 constexpr const char* kAbilitiesScript = "scripts/abilities/abilities.lua";
 constexpr const char* kDefaultArenaScript = "scripts/arenas/neutral.lua";
 constexpr const char* kDefaultDifficultyScript = "scripts/difficulty/normal.lua";
+constexpr double kPlayerEnergyRecoveryPerTurn = 5.0;
 
 struct CliOptions {
     std::string enemyScriptPath;
@@ -95,6 +96,18 @@ void processStatusEffects(Game& game) {
         const double damage = current.processPoison();
         std::cout << current.getName() << " sofre " << damage
                   << " de dano por veneno.\n";
+    }
+}
+
+// Recupera parte da energia do herói no início de cada turno dele. O próprio
+// Character limita a recuperação à energia máxima, então nunca há sobrecarga.
+void restorePlayerEnergy(Game& game) {
+    Character& player = game.getPlayer();
+    const double restored = player.restoreEnergy(kPlayerEnergyRecoveryPerTurn);
+
+    if (restored > 0.0) {
+        std::cout << player.getName() << " recupera " << restored
+                  << " de energia.\n";
     }
 }
 
@@ -300,9 +313,10 @@ int main(int argc, char** argv) {
 
     // Balanceamento da batalha padrão: o herói ainda pode vencer com uso
     // inteligente das habilidades, mas o Goblin sobrevive tempo suficiente
-    // para pressionar o jogador e ativar seu comportamento agressivo.
+    // para pressionar o jogador e ativar seu comportamento agressivo. A energia
+    // máxima de 30 e a regeneração gradual evitam tanto spam quanto esgotamento.
     Game game{
-        Character{"Herói", 100.0, 15.0, 4.0, 25.0},
+        Character{"Herói", 100.0, 15.0, 4.0, 30.0},
         Character{
             "Goblin",
             170.0 * difficulty.healthMultiplier,
@@ -335,6 +349,8 @@ int main(int argc, char** argv) {
 
     while (!game.isBattleOver()) {
         if (game.isPlayerTurn()) {
+            restorePlayerEnergy(game);
+
             if (const std::optional<ArenaEvent> turnEvent = arenaManager.onTurnStart(
                     game.getTurnNumber(),
                     toArenaCharacter(game.getPlayer()),
