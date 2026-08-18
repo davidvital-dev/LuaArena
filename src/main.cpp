@@ -298,13 +298,16 @@ int main(int argc, char** argv) {
     printWarnings("dificuldade", difficultyLoader.warnings());
     const DifficultyConfig& difficulty = difficultyLoader.config();
 
+    // Balanceamento da batalha padrão: o herói ainda pode vencer com uso
+    // inteligente das habilidades, mas o Goblin sobrevive tempo suficiente
+    // para pressionar o jogador e ativar seu comportamento agressivo.
     Game game{
-        Character{"Herói", 100.0, 20.0, 5.0, 50.0},
+        Character{"Herói", 100.0, 15.0, 4.0, 25.0},
         Character{
             "Goblin",
-            60.0 * difficulty.healthMultiplier,
-            12.0 * difficulty.attackMultiplier,
-            3.0,
+            170.0 * difficulty.healthMultiplier,
+            16.0 * difficulty.attackMultiplier,
+            5.0,
             0.0
         },
     };
