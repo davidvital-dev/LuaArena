@@ -88,10 +88,21 @@ sudo apt update
 sudo apt install build-essential make pkg-config liblua5.4-dev
 ```
 
-No Windows, execute os comandos do projeto dentro do WSL ou de outro terminal
-POSIX com a cadeia de compilação completa. O `Makefile` usa comandos como
-`rm`, `mkdir`, `test` e `pkg-config`, portanto não deve ser executado pelo
-`cmd.exe`.
+### Windows
+
+C++ e Lua são multiplataforma, portanto a arquitetura do LuaArena não é limitada ao Linux. Entretanto, a versão entregue do projeto foi configurada e validada em ambiente Linux.
+
+No Windows, a forma mais simples de executar o projeto atualmente é através do **WSL (Windows Subsystem for Linux)**, utilizando uma distribuição como Ubuntu. Dentro do WSL, os mesmos comandos de instalação, build, testes e execução usados no Linux podem ser utilizados.
+
+O `Makefile` atual depende de ferramentas e comandos de ambiente POSIX, como `rm`, `mkdir`, `test`, `make` e `pkg-config`. Por esse motivo, ele **não foi preparado nem validado para execução direta pelo `cmd.exe` ou PowerShell**.
+
+A execução nativa no Windows também é tecnicamente possível, por exemplo com **MSYS2/MinGW** ou **Visual Studio/MSVC**, mas exige adaptar o processo de build e a vinculação da biblioteca Lua. Essa adaptação não altera a arquitetura C++ ↔ Lua nem os scripts do jogo; trata-se principalmente de uma diferença na cadeia de compilação.
+
+Em resumo:
+
+- **Linux:** ambiente utilizado e validado pelo projeto;
+- **Windows + WSL:** caminho recomendado para utilizar o projeto no Windows com o build atual;
+- **Windows nativo:** viável, mas requer adaptação do sistema de build e não faz parte da versão entregue.
 
 ## Build e execução
 
