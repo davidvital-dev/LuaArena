@@ -26,3 +26,28 @@ if grep -q "venceu!" <<<"$output"; then
 fi
 
 echo "[OK] EOF encerra o loop principal"
+
+regen_output="$(printf '4\n' | timeout 5 ./build/lua-arena scripts/enemies/goblin_basic.lua)"
+regen_status=$?
+
+if [[ $regen_status -eq 124 ]]; then
+    echo "[FALHA] teste de regeneração deixou o loop principal em execução"
+    exit 1
+fi
+
+if [[ $regen_status -ne 0 ]]; then
+    echo "[FALHA] jogo retornou $regen_status no teste de regeneração"
+    exit 1
+fi
+
+if ! grep -q "recupera 5 de energia\." <<<"$regen_output"; then
+    echo "[FALHA] energia não foi recuperada no início do turno seguinte"
+    exit 1
+fi
+
+if ! grep -q "25/30 energia" <<<"$regen_output"; then
+    echo "[FALHA] saldo de energia após regeneração não ficou em 25/30"
+    exit 1
+fi
+
+echo "[OK] jogador recupera 5 de energia por turno até o máximo"
